@@ -1,66 +1,90 @@
-# Physics of Intelligence: PoI-SLAM Web & Native Research
+# PoI-SLAM: Structural Field-Based Monocular SLAM
+### Experimental Research based on the "Physics of Intelligence" (PoI) Theory
 
-知能を物理多様体上の幾何学的ダイナミクスとして再定義する学問体系「Physics of Intelligence (PoI)」の実証実験、およびその応用である並行鍵幾何流（PKGF）を用いたSLAMシステムの研究リポジトリです。
+Author: Fumio Miyata  
+Date: April 2026
 
-## 🌌 プロジェクト概要
+---
 
-本プロジェクトは、以下の三相サイクル（C-D-Uサイクル）を工学的に実装し、自己位置推定と環境地図作成を実現します。
+## **Abstract**
 
-- **Cause (構築)**: 外部刺激からの幾何学的構造抽出（PoI-OCR）
-- **Divergence (解体)**: ノイズの除去と構造の粗視化
-- **Unification (統合)**: 幾何学的フロー（PKGF）による論理構造の安定化と地図化
+**PoI-SLAM** is a novel monocular SLAM (Simultaneous Localization and Mapping) system that demonstrates the **Physics of Intelligence (PoI)** theory. Unlike traditional SLAM systems that rely on point-cloud matching or complex non-linear optimization, PoI-SLAM treats the world as a **Structural Relationship Field (K-field)** and describes its temporal evolution through the **Parallel Key Geometric Flow (PKGF)**.
 
-## 📂 ディレクトリ構造
+This project implements and verifies the core concepts of PoI: **Canonical Decomposition Unit (CDU)**, **A-field (Feature Field)**, **K-field (Structure Field)**, and **PKGF-based Dynamics**.
 
-```text
-.
-├── App/          # macOSネイティブアプリ (Swift / Metal)
-├── Core/         # PoI物理エンジン中核 (C++ / PKGF実装)
-├── Data/         # 実験用データセット (Raw画像 / フレームデータ)
-├── Docs/         # 実装計画・機能テスト仕様書
-├── References/   # 理論的背景・数学的公理・研究用Pythonスクリプト
-├── Scripts/      # ビルド自動化・データ生成スクリプト
-├── Tests/        # ユニットテスト・統合テスト (JS / C++)
-├── Web/          # Web実行環境 (WASM / JavaScript / HTML)
-├── build.sh*     # マスタービルドスクリプト
-└── build_macos/  # ビルド成果物 (バイナリ / 中間生成物)
+---
+
+## **1. Core Theoretical Framework**
+
+### **1.1 The K-field (Structure Field)**
+The world is represented not as a set of points, but as the internal geometry between nodes (graph distance $D$), transformed via an exponential kernel into a structure field $K$.
+
+### **1.2 CDU (Canonical Decomposition Unit)**
+A canonicalization mechanism that ensures structural isomorphism across different viewpoints. Implemented using PCA-based axis alignment and local structural histograms to maintain stable node ordering.
+
+### **1.3 PKGF (Parallel Key Geometric Flow)**
+The "physics" of the system follows a first-order update equation:
+$$K_{t+1} = K_t + \eta (\Omega_t - K_t)$$
+where $\Omega$ is the driving field constructed from the A-field. This flow naturally exhibits noise absorption, inertia, and convergence.
+
+---
+
+## **2. System Pipeline**
+
+1.  **PoI-OCR (Structure Extraction)**: Binarization (Otsu), Skeletonization (Zhang-Suen), and node classification (End, Line, Branch, Cross).
+2.  **Internal Geometry ($D$)**: Building graph distances using BFS and cluster centroid augmentation.
+3.  **Canonicalization (CDU)**: Aligning nodes to a canonical coordinate system to stabilize the $K$-field.
+4.  **Field Dynamics (PKGF)**: Evolving the fields and extracting motion signatures from $K$-matrix modes.
+5.  **PoI-World Mapping**: Accumulating persistent structures into a voxel map with a decay factor to eliminate transient noise.
+
+---
+
+## **3. Project Structure**
+
+```
+PoI_SLAM/
+├── Core/            # C++ implementation of PoI Engine (OCR, Fields, PKGF)
+├── App/             # macOS Application (Swift/Metal)
+├── Web/             # Web implementation (WebAssembly/JS)
+├── Data/            # Test frames and Raw stage data
+├── Docs/            # Research plans and functional specifications
+├── Scripts/         # Build and data generation scripts
+├── Tests/           # Unit tests (C++) and Integration tests (WASM/JS)
+└── References/      # Theoretical papers (PoI Theory, PKGF Axioms, etc.)
 ```
 
-## 🛠 ビルドと実行
+---
 
-### macOS ネイティブアプリ
-プロジェクトのルートディレクトリで以下のコマンドを実行してください。
+## **4. Verification Stages**
 
+The system's validity is verified through four distinct experimental stages:
+
+-   **Stage 1: Distance Sensitivity**: Verifying K-field response to objects moving apart.
+-   **Stage 2: Rotation Invariance**: Testing CDU's stability during structural rotation.
+-   **Stage 3: Multi-node Complexity**: Validating PKGF stability with intersecting structures (Cross-move).
+-   **Stage 4: Real-world Synthesis**: Integration test using shaded spheres to simulate real OCR-to-SLAM pipelines.
+
+---
+
+## **5. Building and Running**
+
+### **Prerequisites**
+- macOS (for App) or Node.js/Emscripten (for Web/Tests)
+- clang++ (C++17), swiftc, metal
+
+### **macOS Application**
 ```bash
-./build.sh
-```
-
-ビルド完了後、バイナリを実行します。
-```bash
+./Scripts/build_macos.sh
 ./build_macos/PoISLAMApp
 ```
 
-### Web / WASM 環境
-`Web/` ディレクトリ内の資産を Web サーバー（Node.js 等）でホストしてください。
-
-## 🧪 テストの実行
-
-プロジェクトの品質を担保するため、C++ ユニットテストと JS/WASM 統合テストが用意されています。
-
+### **Running Tests**
 ```bash
 ./Scripts/run_tests.sh
 ```
 
-- **C++ Unit Tests**: 物理エンジンの基礎アルゴリズム（Otsu二値化、骨格化、グラフ距離）を検証します。
-- **JS/WASM Integration Tests**: 4段階のテストステージ（幾何学形状の移動・回転）を通じて、WASMエンジンの挙動を検証します。
+---
 
-## 🔬 主要な理論コンポーネント
+## **6. Conclusion**
 
-- **Parallel Key Geometric Flow (PKGF)**: 多様体上の並行鍵 $K$ と意味ポテンシャル $\Omega$ の相互作用を記述する場の方程式 $\nabla K = [\Omega, K]$。
-- **Sector Decomposition**: 知能のモジュール性を担保する 32 次元、4 セクターの接束分解。
-- **Substrate Invariance**: 電子、生物、シリコンを問わない媒体不変な知能物理法則。
-
-## 📜 ライセンス・著者
-
-- **Author**: Fumio Miyata (2026)
-- **Reference**: [Physics of Intelligence Theory](./References/PoI_Theory_jp.md)
+PoI-SLAM demonstrates that monocular SLAM can be achieved through the dynamics of structural fields. By shifting the paradigm from "computation" to "geometric dynamics," this research paves the way for substrate-invariant intelligent systems.
