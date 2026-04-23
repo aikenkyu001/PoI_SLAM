@@ -2,8 +2,9 @@
 ### Experimental Research based on the "Physics of Intelligence" (PoI) Theory
 
 Author: Fumio Miyata  
-Date: April 2026
-
+Date: April 2026  
+DOI: [https://doi.org/10.5281/zenodo.19705165](https://doi.org/10.5281/zenodo.19705165)  
+Repository: [https://github.com/aikenkyu001/PoI_SLAM](https://github.com/aikenkyu001/PoI_SLAM)  
 ---
 
 ## **Abstract**
