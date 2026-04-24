@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PoI SLAM Web MVP</title>
+
+  <script>
+    // ★ WASM 初期化イベントを先にセットしておく（これが最重要）
+    window.Module = {
+      onRuntimeInitialized() {
+        console.log("WASM initialized");
+        window._wasmReady = true;
+      }
+    };
+  </script>
+
+  <script src="poi.js?v=2001"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; color: #fff; }
+    #header { padding: 40px 0 20px 0; text-align: center; }
+    #view { position: absolute; top: 120px; left: 0; width: 100vw; height: calc(100vh - 120px); }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div class="title">Physics of Intelligence – Fundamental Equation</div>
+  <div>
+
+\[\nabla K = [\Omega, K]\]
+
+</div>
+</div>
+
+<video id="cam" autoplay playsinline style="display:none"></video>
+<canvas id="view"></canvas>
+
+<script src="app.js?v=1"></script>
+
+</body>
+</html>

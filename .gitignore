@@ -209,8 +209,7 @@ __marimo__/
 .DS_Store
 *.o
 Data/
-Web/
-*.wasm
+Web/node_modules/
 build_macos/
 build_tests/
 Tests/poi_test

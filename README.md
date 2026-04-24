@@ -79,6 +79,16 @@ The system's validity is verified through four distinct experimental stages:
 ./build_macos/PoISLAMApp
 ```
 
+### **WebAssembly (Web Implementation)**
+```bash
+emcc Core/poi.cpp -O3 -DEMSCRIPTEN \
+  -s INITIAL_MEMORY=268435456 \
+  -s ALLOW_MEMORY_GROWTH=1 \
+  -s EXPORTED_FUNCTIONS='["_process_frame","_poi_get_dim","_poi_get_n_nodes","_poi_get_A","_poi_get_K","_poi_get_Omega","_poi_get_nodes_x","_poi_get_nodes_y","_poi_get_K_sig","_malloc","_free"]' \
+  -s EXPORTED_RUNTIME_METHODS='["cwrap","HEAPU8","HEAPF32"]' \
+  -o Web/poi.js
+```
+
 ### **Running Tests**
 ```bash
 ./Scripts/run_tests.sh

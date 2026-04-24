@@ -619,9 +619,19 @@ void process_frame(uint8_t* rgba, int w, int h) {
     // PoI-OCR & Graph
     to_grayscale(rgba, w, h, gray);
 
-    // 自然画像ノイズ対策: 簡易的な空間平滑化 (3x1 平均)
+    // 自然画像ノイズ対策: 2次元空間平滑化 (3x3 平均)
     std::vector<uint8_t> smooth = gray;
-    for(int i=1; i<w*h-1; i++) smooth[i] = (gray[i-1] + gray[i] + gray[i+1]) / 3;
+    for (int y = 1; y < h - 1; y++) {
+        for (int x = 1; x < w - 1; x++) {
+            int sum = 0;
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    sum += gray[(y + dy) * w + (x + dx)];
+                }
+            }
+            smooth[y * w + x] = static_cast<uint8_t>(sum / 9);
+        }
+    }
 
     threshold_otsu(smooth, w, h, bin);
     skeletonize(bin, w, h, skel);

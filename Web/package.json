@@ -1,0 +1,13 @@
+{
+  "name": "poi-slam-web",
+  "version": "1.0.0",
+  "description": "PoI-SLAM Web Research Project",
+  "main": "app.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "jest-environment-jsdom": "^29.0.0"
+  }
+}

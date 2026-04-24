@@ -169,12 +169,12 @@ PoI の行列演算は GPU に最適化されているため、
 ビルドコマンド（Emscripten）:
 
 ```bash
-emcc /private/test/PoI_SLAM_Web/Source/poi.cpp -O3 -DEMSCRIPTEN \
+emcc Core/poi.cpp -O3 -DEMSCRIPTEN \
   -s INITIAL_MEMORY=268435456 \
   -s ALLOW_MEMORY_GROWTH=1 \
-  -s EXPORTED_FUNCTIONS='["_process_frame","_poi_get_dim","_poi_get_n_nodes","_poi_get_K","_poi_get_Omega","_poi_get_A","_malloc","_free"]' \
+  -s EXPORTED_FUNCTIONS='["_process_frame","_poi_get_dim","_poi_get_n_nodes","_poi_get_A","_poi_get_K","_poi_get_Omega","_poi_get_nodes_x","_poi_get_nodes_y","_poi_get_K_sig","_malloc","_free"]' \
   -s EXPORTED_RUNTIME_METHODS='["cwrap","HEAPU8","HEAPF32"]' \
-  -o /private/test/PoI_SLAM_Web/Source/poi.js
+  -o Web/poi.js
 ```
 
 ## C++ 側に PoI-OCR 前半を埋めるためのスケルトン
