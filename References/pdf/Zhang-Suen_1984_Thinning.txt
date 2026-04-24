@@ -1,0 +1,34 @@
+# Zhang-Suen Thinning Algorithm (1984)
+# Academic Reference and Implementation Mapping
+
+## 1. Bibliographic Information
+- **Title**: A fast parallel algorithm for thinning digital patterns
+- **Authors**: T. Y. Zhang and C. Y. Suen
+- **Journal**: Communications of the ACM
+- **Volume/Issue**: Vol. 27, No. 3, pp. 236-239
+- **Year**: 1984
+- **DOI**: 10.1145/357994.358023
+
+## 2. BibTeX Entry
+@article{zhang1984fast,
+  title={A fast parallel algorithm for thinning digital patterns},
+  author={Zhang, Ta-Yung and Suen, Ching Y},
+  journal={Communications of the ACM},
+  volume={27},
+  number={3},
+  pages={236--239},
+  year={1984},
+  publisher={ACM New York, NY, USA},
+  doi={10.1145/357994.358023}
+}
+
+## 3. Algorithm Logic (Summary)
+Iteratively removes boundary pixels using two sub-iterations.
+- Sub-iteration 1 conditions: $2 \le B(P1) \le 6, A(P1) = 1, P2 \cdot P4 \cdot P6 = 0, P4 \cdot P6 \cdot P8 = 0$.
+- Sub-iteration 2 conditions: Same $B, A$ but $P2 \cdot P4 \cdot P8 = 0, P2 \cdot P6 \cdot P8 = 0$.
+
+## 4. Relation to PoI-SLAM Core
+This algorithm is implemented in `Core/poi.cpp`:
+- Function: `skeletonize(const std::vector<uint8_t>& bin, int w, int h, std::vector<uint8_t>& skel)`
+- Logic Location: Lines 119-156
+- Purpose: Structural extraction for K-field generation from binary masks.

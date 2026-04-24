@@ -1,0 +1,32 @@
+# Improved Zhang-Suen Thinning Algorithm (Chen, 2012)
+# Academic Reference and Future Optimization Notes
+
+## 1. Bibliographic Information
+- **Title**: An improved Zhang-Suen thinning algorithm (一种改进的Zhang-Suen细化算法)
+- **Authors**: Chen Ying and Wang Weixing (陈颖, 王衛星)
+- **Journal**: Journal of Computer Applications (计算机应用)
+- **Volume/Issue**: Vol. 32, No. 1, pp. 138-140
+- **Year**: 2012
+- **DOI**: 10.3724/SP.J.1087.2012.00138
+
+## 2. BibTeX Entry
+@article{chen2012improved,
+  title={An improved Zhang-Suen thinning algorithm},
+  author={Chen, Ying and Wang, Weixing},
+  journal={Journal of Computer Applications},
+  volume={32},
+  number={1},
+  pages={138--140},
+  year={2012},
+  doi={10.3724/SP.J.1087.2012.00138}
+}
+
+## 3. Proposed Improvements
+Addresses issues in the original 1984 algorithm:
+- Prevents skeleton fractures in specific 3x3 diagonal patterns.
+- Ensures strict single-pixel width (prevents 2x2 blocks).
+- Maintains better topological consistency for complex junctions (Branch/Cross).
+
+## 4. Relation to PoI-SLAM Development
+- Current implementation: Standard Zhang-Suen (Lines 119-156 in `Core/poi.cpp`).
+- Roadmap: Migration to Chen (2012) is planned to improve node classification stability in high-complexity environments (Stage 3).

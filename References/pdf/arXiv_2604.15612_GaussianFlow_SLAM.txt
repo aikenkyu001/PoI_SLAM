@@ -1,0 +1,1406 @@
+IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. ACCEPTED APRIL, 2026
+
+1
+
+GaussianFlow SLAM: Monocular Gaussian Splatting SLAM
+Guided by GaussianFlow
+
+arXiv:2604.15612v1 [cs.RO] 17 Apr 2026
+
+Dong-Uk Seo1 , Jinwoo Jeon1 , Student Member, IEEE, Eungchang Mason Lee1 , Member, IEEE,
+and Hyun Myung1∗ , Senior Member, IEEE
+
+Abstract—Gaussian splatting has recently gained traction as
+a compelling map representation for SLAM systems, enabling
+dense and photo-realistic scene modeling. However, its application
+to monocular SLAM remains challenging due to the lack of
+reliable geometric cues from monocular input. Without geometric
+supervision, mapping or tracking could fall in local-minima,
+resulting in structural degeneracies and inaccuracies. To address
+this challenge, we propose GaussianFlow SLAM, a monocular
+3DGS-SLAM that leverages optical flow as a geometry-aware
+cue to guide the optimization of both the scene structure and
+camera poses. By encouraging the projected motion of Gaussians,
+termed GaussianFlow, to align with the optical flow, our method
+introduces consistent structural cues to regularize both map
+reconstruction and pose estimation. Furthermore, we introduce
+normalized error-based densification and pruning modules to
+refine inactive and unstable Gaussians, thereby contributing to
+improved map quality and pose accuracy. Experiments conducted
+on public datasets demonstrate that our method achieves superior
+rendering quality and tracking accuracy compared with stateof-the-art algorithms. The source code is available at: https:
+//github.com/url-kaist/gaussianflow-slam.
+Index Terms—Gaussian splatting, SLAM, optical flow
+
+I. I NTRODUCTION
+
+V
+
+ISUAL simultaneous localization and mapping (SLAM)
+has long been studied as a core technology for robotics,
+AR/VR, and autonomous navigation. Most conventional,
+image-based approaches reconstruct sparse point-cloud that
+is sufficient for localization but not for dense geometry or
+photo-realistic rendering [1]–[4]. Recent differentiable scene
+representations, including neural radiance fields [5], [6] and
+3D Gaussian splatting (3DGS) [7], enable dense, high-fidelity
+reconstructions. Among them, 3DGS offers real-time rasterization and orders-of-magnitude faster training than volumebased methods. Capitalizing on the speed and differentiability
+gains, researchers have employed 3DGS as the primary map
+representation in SLAM pipelines by seeding each Gaussian
+Manuscript received: November 9, 2025; Revised: February 8, 2026;
+Accepted: March 27, 2026.
+This paper was recommended for publication by Editor Abhinav Valada
+upon evaluation of the Associate Editor and Reviewers’ comments. This
+work was supported in part by the National Research Council of Science &
+Technology (NST) grant by the Korea government (MSIT) (No. GTL25041000), and in part by the Institute of Information & Communications Technology Planning & Evaluation (IITP) grant funded by the Korea government
+(MSIT) (No. RS-2025-25443318, Physically-grounded Intelligence: A Dual
+Competency Approach to Embodied AGI through Constructing and Reasoning
+in the Real World).
+∗ Corresponding author: Hyun Myung.
+1 Dong-Uk Seo, Jinwoo Jeon, Eungchang Mason Lee, and Hyun Myung
+are with the School of Electrical Engineering, KAIST (Korea Advanced Institute of Science and Technology), Daejeon 34141, Republic of Korea (e-mail: {dongukseo, jinuok, eungchang_mason,
+hmyung}@kaist.ac.kr).
+Digital Object Identifier (DOI): see top of this page.
+
+Ray direction
+Alignment gradient
+Pose update
+Depth rasterization
+
+Time Step
+
+Fig. 1: Illustration of GaussianFlow SLAM process. Our method leverages
+optical flow Xt to optimize both 3DGS and camera pose. Along each pixel’s
+ray direction, the projected motion of 3DGS is guided to align with the optical
+flow. The resulting alignment gradient enables 3DGS to iteratively update its
+geometric structure and the camera pose. From the rasterized depth images, it
+can be observed that the geometric structure of 3DGS becomes increasingly
+refined, recovering more valid geometric shapes over time.
+
+with depth measurements (e.g. RGB-D, stereo, LiDAR). Such
+depth cues have enabled stable 3DGS-SLAM with accurate
+pose estimation for high-fidelity reconstructions [8]–[12].
+Despite progress in depth-supervised 3DGS-SLAM, monocular 3DGS-SLAM remains challenging due to the lack of
+explicit depth cues for initializing and constraining Gaussians.
+As 3DGS is optimized around given 3D points, the absence
+of accurate geometric priors increases susceptibility to localminima, making Gaussians fail to converge to geometrically
+consistent positions and instead overfit to particular views,
+ultimately degrading performance. Multi-view training could
+alleviate this issue [11] but remains limited without geometric
+cues such as cross-view correspondences. Alternatively, depth
+predicted by neural networks can bootstrap and constrain
+Gaussians [13]–[16], yet inaccurate priors or scale misalignment may accumulate errors or reintroduce structural distortion in the overall geometry.
+Another key challenge in monocular SLAM with 3DGS
+lies in the difficulty of leveraging the 3DGS for accurate
+pose estimation. Previous methods [9], [11], [17] typically
+estimate the camera pose by minimizing the photometric error
+between the input image and a rendered image from the 3DGS.
+However, when the geometry represented in the 3DGS is
+imprecise or locally degenerate, the rendered image becomes
+misaligned with the real scene, degrading pose estimation.
+This could initiate a self-reinforcing loop in which inaccurate maps degrade pose tracking, and the degraded poses in
+turn corrupt the map. To solve this problem, some methods
+
+2
+
+IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. ACCEPTED APRIL, 2026
+
+decouple tracking with separate modules [15], [16], [18], but
+this turns 3DGS into a passive visualizer that does not provide
+a feedback to improve pose estimation.
+To address these challenges, we propose GaussianFlow
+SLAM, a monocular 3DGS-SLAM framework which leverages dense optical flow as a geometry-aware cue to guide
+the optimization of both the 3DGS and camera poses. Dense
+optical flow inherently encodes information of relative camera pose and depth, providing per-pixel correspondences. By
+aligning the projected motion of Gaussians, i.e., GaussianFlow,
+with the dense optical flow, our method continuously corrects
+3DGS geometry during optimization, even without direct
+depth measurements, as illustrated in Fig. 1. Furthermore,
+our method uses GaussianFlow to guide the convergence
+of optical flow in pose estimation modules. This facilitates
+the feedback loop, allowing the mapping process to improve
+tracking accuracy.
+Meanwhile, continuous geometry correction driven by the
+learning of GaussianFlow may inadvertently introduce underdensified inactive Gaussians or floaters, which are visually
+disturbing and structurally unstable. To address this problem,
+we propose normalized error-based densification and pruning
+modules that leverage per-Gaussian error to selectively adjust
+inactive and unstable Gaussians. These modules enhance both
+the quality of the map and the pose estimation accuracy in the
+SLAM pipeline.
+In summary, our main contributions are as follows:
+• To the best of our knowledge, GaussianFlow SLAM is
+the first 3DGS-SLAM framework to incorporate optical
+flow supervision with closed-form analytic gradients,
+implemented directly in the 3DGS kernel for optimization
+of geometry and camera poses. Our method drives optical
+flow to converge toward geometry-consistent correspondences using GaussianFlow, improving pose estimation.
+• We propose normalized error-based densification and
+pruning modules that leverage per-Gaussian error to selectively adjust inactive and unstable Gaussians. This improves both map quality and pose accuracy by mitigating
+the accumulation of erroneous Gaussians.
+• GaussianFlow SLAM achieves state-of-the-art tracking
+accuracy and photo-realistic reconstruction quality on the
+two public datasets [19], [20], outperforming existing
+monocular Gaussian splatting SLAM baselines.
+II. R ELATED W ORK
+A. SLAM with Differentiable Rendering
+Following the success of neural radiance fields (NeRF)
+in achieving photo-realistic scene reconstruction, numerous
+works have extended NeRF [5] to SLAM. Although more
+efficient encodings have been utilized in several NeRF-based
+SLAMs [21]–[23], slow rendering speed inherent to NeRF’s
+ray-marching still remains an obstacle. Based on the fast,
+differentiable tile-based rasterization of 3DGS that enables
+high-fidelity rendering [7], early 3DGS-SLAM methods primarily focused on RGB-D settings [8]–[11], where accurate
+depth provides a reliable basis for 3DGS initialization and
+optimization. Representative pose-tracking strategies include
+photometric-gradient tracking [9], joint RGB-D optimization
+
+with on-manifold pose updates [11], and the iterative closest
+point (ICP)-based alignment [10].
+On the other hand, several works have extended 3DGS
+to monocular SLAM by bootstrapping Gaussians either from
+sparse 3D feature points [18] or from dense depth predicted
+by neural networks [14]–[16]. However, sparse features can
+destabilize mapping, and depth-prior methods often suffer
+from scale misalignment and accumulated geometric errors.
+In terms of pose tracking, MonoGS [11] and NoPoseGS [17]
+optimized photometric loss via on-manifold optimization but
+remained susceptible to overfitting, where errors in the 3DGS
+may introduce biases to subsequent pose estimates and reinforce degradation in the feedback loop. Although separate
+tracking modules alleviate this instability [15], [16], [18], these
+methods reduce 3DGS to a passive renderer; in contrast, our
+method leverages GaussianFlow to provide geometry-aware
+feedback that improves tracking accuracy.
+B. Optical Flow for SLAM
+Early visual SLAM systems [1], [24] tracked sparse feature
+correspondences, often via sparse optical flow [25]. With
+modern neural networks, dense optical flow has become substantially more accurate and is now widely used in SLAM,
+including learning-based pose estimation [26], robust residual modeling [27], and recurrent refinement frameworks that
+achieve state-of-the-art performance [28]–[30].
+While a few studies have explored training 3DGS with
+optical flow, these works have focused primarily on learning
+dynamic content [31]–[33] or improving offline scene understanding [34]. To the best of our knowledge, GaussianFlow
+SLAM is the first algorithm that directly incorporates optical
+flow supervision into 3DGS-SLAM with the closed-form
+analytic gradients, thereby enabling the optimization of pose
+and scene geometry.
+III. G AUSSIAN F LOW SLAM
+A. Overall Framework
+For incoming monocular frames, a keyframe is selected using the rough optical flow with respect to the last keyframe and
+it is incorporated into the optimization window, following the
+strategies similar to previous works [15], [28]. With an initial
+pose estimate (Section III-C), each keyframe identifies regions
+with insufficient Gaussian density or high rendering loss, and
+inserts new Gaussians into these regions. Subsequently, our
+system operates in an alternating loop, where dense bundle
+adjustment (DBA) guided by GaussianFlow and multi-view
+optimization using GaussianFlow loss (Section III-B) are iteratively performed across multiple keyframes (Section III-C).
+During mapping, we employ our proposed normalized errorbased densification and pruning modules (Section III-D) to
+adjust inactive and unstable Gaussians. An overview of the
+proposed system is illustrated in Fig. 2(a).
+B. GaussianFlow Optimization
+1) GaussianFlow Loss: We begin by introducing the concept of GaussianFlow, which is the projected motion of
+Gaussians. Using the definition proposed by Gao et al. [31],
+GaussianFlow is expressed analogously to optical flow on the
+
+SEO et al.: GAUSSIANFLOW SLAM: MONOCULAR GAUSSIAN SPLATTING SLAM GUIDED BY GAUSSIANFLOW
+
+(a) System overview
+
+(b) Recurrent update process
+Tracking
+Initial pose
+optimization
+
+3DGS
+GaussianFlow-guided
+DBA
+
+Monocular images
+
+Mapping
+
+3
+
+Error-based
+densification & pruning
+
+ConvGRU
+
+(c) Complementary flow convergence
+
+3D Gaussian splatting
+
+Multi-view optimization
+
+Optimization
+kernels
+
+GaussianFlow
+Time step
+
+Rendered image
+
+Fig. 2: (a) The overall framework of GaussianFlow SLAM. Each of the three modules highlighted by the dashed box performs a recurrent update process
+during optimization. (b) The recurrent update process. The GaussianFlow ζt is passed to the ConvGRU (Convolutional Gated Recurrent Unit) module to
+predict optical flow Xt , which is then used by optimization kernels to update either the camera pose T or the 3DGS G. The updated G are subsequently used
+to re-estimate ζt . (c) Visualization of the complementary convergence between GaussianFlow ζt and optical flow Xt over time.
+
+static scene, which is the motion of pixel pjt in the frame It to
+the corresponding pixel pjt+1 in the frame It+1 using 3DGS.
+Specifically, Gaussians rasterized at pixel pjt are normalized
+to the canonical space and unnormalized to the image space
+of the frame It+1 . GaussianFlow ζ t (pjt ) is then formulated as
+follows:
+X
+j
+ζ t (pjt ) =
+wij [Bi,t+1 B−1
+(1)
+i,t δ i,j,t + µi,t+1 ] − pt ,
+i∈Gtj
+
+With the GaussianFlow ζ t (pjt ), we define the flow loss
+by comparing it against the optical flow X jt at pixel pjt
+estimated from the neural network. Considering that optical
+flow estimation often contains noise, we adopt the log-logistic
+residual model proposed by Min et al. [27] to robustly model
+the flow residual. The flow loss Ltflow is then formulated as
+follows:
+X
+P (X j | ζ t , κjt = 1)
+Ltflow = −
+qj (κjt = 1) log P t
+,
+(2)
+j
+j
+κj P (X t | ζ t , κt )
+j∈It
+t
+
+′1/2
+
+where Bi,t = Σi,t and δ i,j,t = pjt − µi,t ; Gtj denotes the set
+of Gaussians that contribute to the rendering of pjt ; the matrix
+Σ′i,t represents the 2D covariance of Gaussian Gi projected to
+the frame It by the pose Tt ; µi,t represents the 2D center of
+eachQGaussian Gi projected to the frame It ; the weight wij =
+αij k<i (1 − αkj ) follows the α-blending of 3DGS [7], with
+′−1
+αij = oi exp(−δ ⊤
+i,j,t Σi,t δ i,j,t /2) and oi denotes the opacity
+of Gaussian Gi . In the following sections, we derive equations
+using only consecutive frames (It , It+1 ) for simplicity, but
+the derivations can also be applied to other keyframe pairs
+(It , It+k ).
+To use GaussianFlow as the loss for optimization, prior
+works [31]–[33] either approximated Bi,t+1 B−1
+i,t as identity, or
+calculated the gradients for backpropagation using PyTorch’s
+automatic differentiation [35]. The former blocks gradient
+propagation to the 3DGS covariance through Bi,t+1 B−1
+i,t , hindering GaussianFlow optimization of covariances. The latter
+yields correct derivatives, but it relies on a redundant dynamic
+computation graph and executing the backward pass in a
+separate PyTorch’s autograd engine, which cannot be fused
+into the low-level, tile-based rasterization kernel of 3DGS. As
+a result, autograd based approach limits scalability with regard
+to compute time and memory in SLAM settings that require
+repeated pose-gradient propagation and map optimization over
+large numbers of Gaussians. To enable kernel-integrated and
+scalable optimization, we analytically decompose Bi,t+1 and
+B−1
+i,t using closed-form formula of eigen decomposition [36],
+yielding gradients that support backpropagation through Gaussian parameters and camera poses, which will be described in
+more detail in Section III-B2.
+
+where
+
+(
+
+ρ(ζ t (pj )||X jt ) if κjt = 1,
+(3)
+ν(X jt )
+if κjt = 0.
+In this formulation, qj (κjt = 1) denotes the normalized optical
+flow confidence score of pixel pjt acquired from the optical
+flow network, and the binary variable κjt represents the inlier
+(1) or outlier (0) status of the optical flow estimate. The
+function ρ(·||·) is the probability density function of the loglogistic distribution for the optical flow, while ν(·) denotes the
+density function of a uniform distribution, used to account for
+outliers.
+2) Closed-Form Analytic Gradients: Our goal is to backpropagate the flow loss to both Gaussian parameters and camera poses, enabling GaussianFlow to directly refine geometry
+and pose within the 3DGS optimization. The key challenge is
+that GaussianFlow depends on the projected covariance Σ′i,t
+through the matrix functions Σ′±1/2 (via Mi,t=Bi,t+1 B−1
+i,t ),
+whose derivatives are not straightforward to implement in
+the fused GPU kernel. Because Σ′i,t is a 2×2 symmetric
+positive definite matrix, we express these matrix functions via
+the eigen decomposition Σ′i,t = Qi,t Si,t Q⊤
+i,t , which yields
+closed-form derivatives w.r.t. Qi,t and Si,t , as given in (9)
+and (10). Moreover, the closed-form eigen decomposition
+provides analytic Jacobians from (Qi,t , Si,t ) back to Σ′i,t , so
+∂L/∂Σ′i,t can be obtained via the chain rule in the kernel.
+With these closed-form derivatives, the flow loss gradient can
+be propagated to camera poses directly within the 3DGS GPU
+kernel, as given in (11) and (12).
+From (2), the per-pixel flow loss ψ jt without confidence qj
+for pixel pjt is represented as follows:
+P (X jt |ζ t , κjt ) =
+
+4
+
+IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. ACCEPTED APRIL, 2026
+
+P (X j | ζ t , κjt = 1)
+ψ jt = − log P t
+.
+j
+j
+κj P (X t | ζ t , κt )
+
+(4)
+
+t
+
+Because (4) is differentiable and parallelizable, gradients of
+Ltflow with respect to the 3DGS parameters could be derived
+via the chain rule in the kernel. Specifically, we derive the
+gradients of the flow loss with respect to the 3D mean xi,t
+and the covariance Σi,t as follows:
+∂Ltflow ∂µi,t
+∂Ltflow ∂µi,t+1
+∂Ltflow ∂Σi,t
+∂Ltflow
+=
++
++
+,
+∂xi,t
+∂µi,t ∂xi,t
+∂µi,t+1 ∂xi,t
+∂Σi,t ∂x!
+i,t
+s(ℓ)
+X
+∂Ltflow
+∂Ltflow ∂Qi,ℓ
+∂Ltflow ∂Si,ℓ
+=
++
+,
+s(ℓ) ∂Σ
+∂Σi,t
+∂Qi,ℓ ∂Σi,t
+i,t
+∂S
+
+(5)
+(6)
+
+i,ℓ
+
+ℓ∈{t,t+1}
+
+where s(t) = −1/2 and s(t + 1) = 1/2. Note that Ltflow
+also differentiates through wij ; the resulting gradient terms
+follow the standard 3DGS backward pass, and we omit their
+derivation for brevity. The gradient with respect to the opacity
+oi is obtained directly via the scalar chain rule. Subsequently,
+we derive the following gradients, when the GaussianFlow loss
+gradient is denoted as Dt (
+= ∂Ltflow /∂ζ t :
+∂Ltflow
+=
+∂µi,ℓ
+
+∂Ltflow
+∂(B−1
+i,t , Bi,t+1 )
+
+⟨−M⊤
+i,t Dt ⟩Ωi ,
+⟨Dt ⟩Ωi ,
+
+ℓ = t,
+ℓ = t + 1,
+D
+E
+= Bi,t+1 vi,t , vi,t B−⊤
+.
+i,t
+
+(7)
+(8)
+
+Ωi
+
+P
+where vi,t = Dt (pjt − µi,t )⊤ , and ⟨f ⟩Ωi := j∈Ωi wij f (j)
+denotes the weighted summation over the pixel set Ωi rasterized by Gi . Finally, letting At = ∂Ltflow /∂B−1
+i,t and At+1 =
+∂Ltflow /∂Bi,t+1 , the gradients with respect to the eigen decomposition are derived as follows:
+∂Ltflow
+s(ℓ)
+= (Aℓ + A⊤
+ℓ )Qi,ℓ Si,ℓ ,
+∂Qi,ℓ
+∂Ltflow
+= Q⊤
+i,ℓ Aℓ Qi,ℓ .
+s(ℓ)
+∂Si,ℓ
+
+(9)
+(10)
+
+These results are then propagated to the individual elements
+of Σi,t through the scalar chain rule, enabling optimization of
+the covariance.
+Meanwhile, by parameterizing the camera poses T ∈ SE(3)
+using the Lie algebra se(3) [37], we extend our derivation
+to include gradients with respect to the camera poses. For
+notational simplicity, the gradient for the pose is expressed
+as ∂L/∂T. Using the gradient from GaussianFlow loss, we
+derive the gradients for each poses as follows:
+
+X  ∂Lt ∂xi,t ∂µi,t
+∂Ltflow ∂Σ′i,t
+∂Ltflow
+flow
+=
++
+,
+(11)
+′
+∂Tt
+∂xi,t ∂µi,t ∂Tt
+∂Σi,t ∂Tt
+i
+
+X  ∂Lt
+∂Ltflow
+∂Ltflow ∂Σ′i,t+1
+flow ∂xi,t ∂µi,t+1
+=
++
+.
+′
+∂Tt+1
+∂xi,t ∂µi,t+1 ∂Tt+1
+∂Σi,t+1 ∂Tt+1
+i
+(12)
+
+These formulations enable pose updates not only for the frame
+It where rasterization occurs, but also for the target frame It+1
+of the optical flow.
+C. Tracking and Mapping
+As described in Section III-A, our tracking strategy employs
+two modules. To estimate the initial pose of a new keyframe
+It+1 , we use the GaussianFlow loss (2) between It+1 and
+the two preceding keyframes It−1 and It , along with the
+
+photometric loss Lt+1
+image for It+1 , which exploits the image loss
+gradient ∂Limage /∂T derived in [11], [17]. Although geometric
+optimization has not yet been performed for It+1 , the preceding keyframes have already been optimized, enabling the usage
+of GaussianFlow loss to update the pose of It+1 . Accordingly,
+the loss function for initial pose tracking is formulated as
+follows:
+min
+
+Tt+1 ∈SE(3)
+
+t−1
+t
+Lt+1
+image + λ1 (Lflow + Lflow ),
+
+(13)
+
+where λ1 is flow loss weight and Limage denotes the original
+3DGS loss, a weighted sum of L1 loss and structural dissimilarity (DSSIM) loss [7].
+After the initial pose estimation, we optimize the poses
+of multiple keyframes in the window via DBA [28] guided
+by GaussianFlow. Because first-order optimization in 3DGS
+lacks curvature information, it can struggle to converge in
+highly non-linear multi-pose refinement [38]. We therefore
+adopt the DBA for second-order optimization, which solves
+a flow-based bundle adjustment problem between keyframes.
+To leverage cross-view consistency, we use GaussianFlow as
+the flow input: ζt is fed into the pretrained ConvGRU [28] to
+produce Xt , which in turn guides the optimization.
+During mapping, the poses estimated by DBA are held fixed
+while we perform multi-view optimization of the 3DGS G.
+Within the optimization window W, optical flow-based edges
+are connected between keyframes, following a similar scheme
+to [15], [28]. For each mapping iteration, one of the edges
+connected to the keyframe k ∈ W is selected to compute the
+mapping loss, which is formulated as follows:
+k
+k
+min Ltimage
++ λ2 Ltflow
++ λ3 Liso + λ4 Lopa ,
+
+G
+
+(14)
+
+where λ2 , λ3 , and λ4 are weighting coefficients for the flow,
+isotropic, and opacity losses, respectively. The isotropic loss
+Liso [11] and opacity entropy loss Lopa [39] regularize the
+Gaussians to avoid excessive elongation and vague floaters.
+Subsequently, the system alternates between DBA pose estimation and mapping.
+For these three modules (initial pose estimation,
+GaussianFlow-guided DBA, multi-view mapping), a recurrent
+update process is employed. Prior works such as RAFT [30]
+and DROID-SLAM [28] have shown that optical flow
+becomes more accurate through iterative refinement, and that
+incorporating per-keyframe projected depth further improves
+the accuracy of both depth and pose estimation. Beyond
+the per-keyframe depth optimization, we refine optical flow
+using GaussianFlow rendered from a shared and continuously
+optimized 3DGS map. As illustrated in Fig. 2(b), the recurrent
+update process jointly refines GaussianFlow and optical flow
+from ConvGRU under the updated poses and the shared map,
+as shown in Fig. 2(c).
+D. Gaussian Management and Filtering Modules
+1) Error-based Densification and Pruning: While new
+Gaussians are inserted for each keyframe, the 3DGS map
+can still be too sparse to capture fine textures. The original
+3DGS [7] therefore densifies Gaussians when their position
+gradients exceed a threshold, but this approach may miss
+Gaussians that, as observed in [40], remain nearly stationary
+
+Rendered image
+
+Error
+
+where Et denotes a rendering-based loss map function. Unlike
+the prior error-based approach [40] that uses per-Gaussian
+error Eit , we normalize it to remove a screen-space coverage
+bias: Eit grows with the number of affected pixels and thus
+takes larger values for wide Gaussians. We therefore divide
+Eit by the Gaussian’s density contribution, yielding a scaleinvariant score across different radii. Specifically, we apply the
+silhouette image Ht [8], which represents the per-pixel scene
+density, to Et in (15) to compute the density contribution of
+each Gaussian as Dit = Eit [Ht ]. Then, we define the normalized
+error as Êit [Et ]=Eit [Et ]/Dit . For these purposes, we employ
+two types of loss maps, with St denoting the per-pixel DSSIM
+loss map and Ft (pjt ) = qj (κjt = 1)ψtj denoting the per-pixel
+flow loss map. As shown in Fig. 3, Eit tends to to be larger for
+wide-coverage Gaussians, whereas Êit highlights errors more
+consistently with their relevance for each loss.
+Leveraging both the Gaussian error Eit and the normalized
+Gaussian error Êit , we perform densification by splitting
+Gaussians within the following masks:
+M1t = {Gi |Eit [St ] > ηs1 ∩ rit > ηr1 ∩ ∇p Git < ηg1 },
+
+(16)
+
+M2t = {Gi |Êit [St ] > ηs2 ∩ rit > ηr1 },
+M3t = {Gi |rit > ηr2 },
+
+(17)
+(18)
+
+where rit is the maximum projected radius of Gi on It , ∇p
+denotes the position gradient, and η(·) are thresholds. Here,
+M1t targets large Gaussians with high errors but small position
+gradients, M2t targets large Gaussians with high normalized
+errors, and M3t splits overly large Gaussians. Together, M1t and
+M2t enable densification for both nearly stationary Gaussians
+with large errors and Gaussians with high normalized errors,
+mitigating the coverage bias of summed per-Gaussian error.
+Meanwhile, the GaussianFlow-based mapping may shift
+and deform Gaussians for geometry correction, occasionally
+shrinking them so that they receive negligible gradient updates
+and become floaters that stagnate and degrade geometric
+fidelity. To remove these unstable Gaussians, we prune those
+identified by the following masks:
+M4t = {Gi |(Êit [St ] > ηp1 ∪ Êit [Ft ] > ηp2 ) ∩ rit < ηr3 },
+
+(19)
+
+M5t = {Gi |Êit [St ] > ηp3 ∩ rit < ηr4 },
+
+(20)
+
+M6t = {Gi |oti < ηo1 },
+
+(21)
+
+oti
+
+where
+is the opacity of Gi used to rasterize the frame
+It . Here, M4t removes small Gaussians with high normalized DSSIM or flow errors, M5t extends this criterion to a
+wider radius range using DSSIM, and M6t prunes low-opacity
+Gaussians. Beyond pruning by size and opacity, our method
+performs more fine-grained pruning by removing small-radius
+Gaussians with high normalized DSSIM or flow errors, which
+frequently emerge as floaters during GaussianFlow optimization.
+
+Low
+
+j∈It
+
+Error intensity
+
+yet incur large errors due to local minima. To address this
+limitation, we reimplemented the per-Gaussian error proposed
+in [40] and propose a normalized error for more selective
+densification. For a Gaussian Gi rasterized in the frame It ,
+the Gaussian error Eit [40] is computed as follows:
+X
+wij Et (pj ),
+(15)
+Eit [Et ] =
+
+5
+
+High
+
+SEO et al.: GAUSSIANFLOW SLAM: MONOCULAR GAUSSIAN SPLATTING SLAM GUIDED BY GAUSSIANFLOW
+
+Normalized Error
+
+Normalized Error
+
+Fig. 3: Visualization of per-Gaussian error types for the rendered image from
+an alternative viewpoint. For Eit [St ], the density contribution of each Gaussian
+is not considered, so the errors tend to highlight spatially extended Gaussians.
+In contrast, Êit [St ] and Êit [Ft ] account for the density contribution of each
+Gaussian, enabling delicate per-Gaussian error analysis.
+
+2) Gaussian ID Assignment for Adaptive Window: To
+maintain map consistency with a shared global 3DGS map,
+we optimize recent keyframes together with earlier covisible
+keyframes. Similar to loop-aware keyframe management in
+the prior approach [41] using Gaussian IDs, we store a single
+keyframe ID per Gaussian and assign it at first rasterization
+(insertion or split) using the ID of the rasterizing keyframe.
+Although approximate, the large and diverse set of Gaussians
+captures most covisible keyframes, providing a functionality
+similar to loop-closure with 3DGS that improves large-scale
+accuracy.
+IV. E XPERIMENTAL R ESULTS
+A. Dataset
+To evaluate GaussianFlow SLAM, we conducted experiments on two public real-world datasets, the TUM RGBD dataset [20] and the EuRoC dataset [19]. TUM RGB-D
+provides small-scale indoor sequences that have been widely
+adopted for 3DGS-SLAM evaluation, where most existing
+monocular 3DGS-SLAM methods already have demonstrated
+relatively strong performance. In contrast, EuRoC dataset
+consists of large-scale UAV sequences with challenging motions and lighting conditions, where 3DGS-SLAM systems
+are more prone to geometric errors and local-minima issues,
+thus providing a challenging benchmark. Both benchmarks are
+predominantly static. Evaluating and extending our method to
+highly dynamic scenes is left for future work.
+B. Implementation Details
+Our method operates on monocular camera input. SLAM
+modules were implemented in Python, but GaussianFlow
+rasterization process, flow loss computation, and gradient
+backpropagation were implemented in the CUDA kernel. All
+experiments were conducted with an AMD Ryzen Threadripper 3.6 GHz PRO 5975WX processor and a single NVIDIA
+RTX A6000 GPU. We empirically set the hyperparameters as
+follows. For the GaussianFlow loss, we set λ1= 1.0, λ2= 0.5
+for EuRoC and 0.1 for TUM RGB-D, λ3= 1.0, and λ4= 0.01.
+The error-based densification module used ηs1 = 0.2, ηr1 = 10,
+ηg1 = 0.0001, ηs2 = 0.1, and ηr2 = 40. For the pruning module,
+we set ηp1 = 0.6, ηp2 = 0.2, ηr3 = 5, ηp3 = 1.5, and ηr4 = 7, and
+
+6
+
+IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. ACCEPTED APRIL, 2026
+
+HI-SLAM2
+
+WildGS-SLAM
+
+Ours
+
+TABLE I: Tracking performance comparison on EuRoC and TUM RGB-D
+datasets (RMSE ATE [m]). The best three results are highlighted in order
+of the first , second , and third , respectively. When pose estimation diverged
+during the process, the result was indicated by ×.
+Dataset
+
+Fig. 4: Comparison of rendered images and rasterized depths for a challenging
+scene. Methods exploiting monocular depth priors, such as HI-SLAM2 [15]
+and WildGS-SLAM [16], learn incorrect 3DGS geometry when the depth
+prior is unreliable. In contrast, our GaussianFlow-based method robustly learns
+geometrically valid structures.
+
+additionally used ηo1 = 0.05. λ2 was set to the larger value
+for EuRoC to assign a stronger weight to the flow loss, which
+facilitates spatial expansion in large-scale scenes.
+C. Baseline Algorithms
+We compare our method against publicly available 3DGSSLAMs with monocular mode, including MonoGS [11],
+MM3DGS-SLAM [13], Photo-SLAM [18], HI-SLAM2 [15]
+and WildGS-SLAM [16]. Considering that our algorithm inherently provides functionality similar to loop closure, we
+conducted all experiments with the loop closure enabled when
+it is supported. For a fair comparison, offline full posegraph optimization was disabled, and the map refinement was
+performed the same number of times across all methods.
+Because MM3DGS-SLAM [13] requires a depth image of
+the first frame for scale alignment, we replaced it with a
+monocular prior. WildGS-SLAM [16] was run in static mode
+due to degraded performance in dynamic mode.
+
+Seq.
+
+MH01
+MH02
+MH03
+MH04
+MH05
+EuRoC
+V101
+[19]
+V102
+V103
+V201
+V202
+V203
+TUM f1/desk
+RGB-D f2/xyz
+[20] f3/office
+
+MonoGS
+[11]
+
+3.202
+2.877
+2.452
+4.000
+3.417
+1.650
+1.895
+1.326
+2.152
+1.195
+1.017
+0.026
+0.047
+0.027
+
+MM3DGS- HI-SLAM2 WildGSPhotoSLAM [13]
+[15]
+SLAM [16] SLAM [18]
+
+3.110
+2.996
+×
+×
+4.939
+×
+1.771
+×
+×
+1.897
+×
+0.439
+0.236
+1.481
+
+0.046
+0.036
+0.065
+0.080
+0.058
+0.088
+0.069
+0.076
+0.071
+0.065
+0.069
+0.021
+0.002
+0.017
+
+0.279
+0.368
+0.858
+2.998
+3.452
+0.149
+0.163
+0.160
+0.133
+0.155
+0.214
+0.026
+0.023
+0.130
+
+0.043
+0.036
+0.038
+0.057
+0.048
+0.096
+0.061
+0.065
+×
+0.057
+×
+0.015
+0.003
+0.021
+
+Ours
+
+0.027
+0.035
+0.033
+0.067
+0.053
+0.079
+0.050
+0.051
+0.050
+0.040
+0.066
+0.024
+0.001
+0.015
+
+without smoothing was lower on some sequences. However,
+in LPIPS, which reflects perceptual quality, our approach
+outperformed in most cases.
+E. Qualitative Comparison
+We report qualitative results from reconstructed 3DGS,
+highlighting the differences between our GaussianFlow SLAM
+and other algorithms. As shown in Fig. 4, compared with two
+algorithms that utilize the depth prior as a loss term for 3DGS
+training, our method produces more geometrically valid rasterized depth. Furthermore, Fig. 5 demonstrates that our approach
+successfully reconstructs detailed structural characteristics of
+objects. In contrast, Photo-SLAM fails to capture sufficient
+details due to feature sparsity, while HI-SLAM2 and WildGSSLAM miss such structures because of the errors coming from
+the depth prior.
+
+D. Quantitative Comparison
+
+F. Ablation Study
+
+Table I reports pose accuracy measured by RMSE of absolute trajectory error (ATE). While most methods perform
+reliably on room-scale TUM RGB-D, several degrade on
+the larger-scale EuRoC: MonoGS is prone to local minima, MM3DGS-SLAM suffers from scale misalignment, and
+WildGS-SLAM is affected by depth-prior errors. HI-SLAM2
+alleviates these issues via robust scale alignment, yet it still fell
+short compared with Photo-SLAM which is based on ORBSLAM3 [2], and our approach. Photo-SLAM outperforms ours
+on a few challenging sequences (EuRoC MH04/MH05 and
+TUM fr1/desk), where extremely low illumination or transient
+motion blur can make dense correspondences from optical
+flow unreliable. Nevertheless, our method achieves the best
+results on most sequences, and dense pixel supervision is
+particularly well-suited for improving rendering quality of
+3DGS by providing more geometric information than sparse
+feature measurements.
+Table II reports the rendering quality evaluation results,
+evaluated on one out of every five non-keyframes using
+peak signal-to-noise ratio (PSNR), structural similarity index (SSIM), and learned perceptual image patch similarity
+(LPIPS), following the protocol in [11], [15], [16]. Our method
+achieved higher performance than most of the compared
+algorithms. HI-SLAM2 achieved higher PSNR and SSIM by
+suppressing noise through smoothing loss, whereas our method
+
+Table III ablates the effect of GaussianFlow guidance on
+EuRoC dataset, where large-scale sequences and rapid motions
+make pose estimation challenging. GaussianFlow guidance
+improves pose accuracy on most sequences, indicating that
+leveraging the shared 3DGS geometry provides a benefit for
+pose estimation. In addition, Table IV evaluates the proposed
+densification and pruning on rendering and pose accuracy,
+averaged over each dataset. Replacing our modules with the
+original densification and pruning modules (ODP) [7] used
+in all baselines degrades both rendering quality and pose
+accuracy, mainly due to many small floaters produced during
+optimization. To avoid excessive Gaussian growth or pose
+divergence observed with low thresholds in ODP, we set
+the densification threshold to 0.003. The performance drop
+confirms that our error-based densification and pruning are
+essential. We encourage readers to refer to the supplementary
+video for qualitative comparisons.
+G. Runtime and Scalability
+We report runtime and scalability analysis on the MH05
+sequence of the EuRoC dataset under the same evaluation
+setting. Table V summarizes the runtime and rendering FPS
+of GaussianFlow SLAM and prior methods. Although 3DGS
+rendering itself is not a bottleneck in our method (466 FPS),
+the online processing speed is 0.17 FPS, lower than other
+
+SEO et al.: GAUSSIANFLOW SLAM: MONOCULAR GAUSSIAN SPLATTING SLAM GUIDED BY GAUSSIANFLOW
+
+7
+
+TABLE II: Rendering performance comparison on EuRoC and TUM RGB-D datasets. The best three results are highlighted in first , second , and third . For
+algorithms where pose estimation failed, the map could not be reconstructed, and thus the rendering performance value was marked as -.
+Method
+
+EuRoC [19]
+
+Metric
+
+TUM RGB-D [20]
+
+MH01 MH02 MH03 MH04 MH05 V101 V102 V103 V201 V202 V203 fr1/desk fr2/xyz fr3/office
+PSNR [dB] ↑ 17.092 17.513 10.486 18.231 13.628 19.527 14.439 11.660 18.595 10.737 11.626 21.206 22.531 22.673
+SSIM ↑
+0.583 0.603 0.357 0.673 0.439 0.721 0.636 0.632 0.719 0.527 0.610
+0.712
+0.731
+0.773
+0.507 0.485 0.698 0.443 0.638 0.464 0.601 0.666 0.431 0.719 0.679
+0.340
+0.283
+0.336
+LPIPS ↓
+
+MonoGS [11]
+
+MM3DGS-SLAM [13]
+
+PSNR [dB] ↑ 16.918 18.367
+SSIM ↑
+0.564 0.612
+0.471 0.430
+LPIPS ↓
+
+-
+
+-
+
+19.682
+0.702
+0.386
+
+-
+
+19.880
+0.745
+0.421
+
+-
+
+-
+
+19.089
+0.752
+0.400
+
+-
+
+15.015
+0.596
+0.455
+
+14.482
+0.540
+0.494
+
+16.920
+0.609
+0.487
+
+-
+
+22.134
+0.815
+0.261
+
+-
+
+21.431
+0.714
+0.315
+
+21.216
+0.690
+0.266
+
+20.683
+0.719
+0.295
+
+Photo-SLAM [18]
+
+PSNR [dB] ↑ 18.611 18.851 19.382 22.355 20.570 22.941 23.846 18.504
+0.614 0.632 0.668 0.807 0.744 0.817 0.840 0.784
+SSIM ↑
+LPIPS ↓
+0.448 0.431 0.410 0.255 0.362 0.259 0.271 0.470
+
+HI-SLAM2 [15]
+
+PSNR [dB] ↑ 24.315 24.410 22.681 23.642 23.888 25.139 26.175 21.404 26.157 23.513 24.574
+0.826 0.827 0.806 0.843 0.842 0.891 0.895 0.840 0.888 0.855 0.873
+SSIM ↑
+LPIPS ↓
+0.190 0.191 0.207 0.203 0.213 0.169 0.173 0.313 0.145 0.206 0.246
+
+22.083
+0.750
+0.252
+
+23.976
+0.808
+0.174
+
+24.537
+0.842
+0.177
+
+WildGS-SLAM [16]
+
+PSNR [dB] ↑ 19.573 19.629 18.803 20.167 20.541 21.941 22.691 20.867 24.137 20.874 21.126
+0.666 0.653 0.670 0.732 0.730 0.793 0.822 0.822 0.848 0.798 0.811
+SSIM ↑
+LPIPS ↓
+0.381 0.398 0.402 0.369 0.376 0.319 0.318 0.398 0.224 0.337 0.397
+
+21.169
+0.702
+0.348
+
+22.462
+0.730
+0.305
+
+21.752
+0.761
+0.331
+
+Ours
+
+PSNR [dB] ↑ 25.220 25.942 23.236 25.121 25.040 25.083 24.965 21.228 26.274 24.408 23.591
+0.865 0.877 0.850 0.875 0.877 0.895 0.873 0.847 0.886 0.879 0.855
+SSIM ↑
+LPIPS ↓
+0.131 0.130 0.142 0.136 0.135 0.138 0.191 0.284 0.115 0.165 0.256
+
+22.871
+0.790
+0.202
+
+24.422
+0.836
+0.123
+
+23.764
+0.819
+0.163
+
+MonoGS
+
+Photo-SLAM
+
+HI-SLAM2
+
+WildGS-SLAM
+
+Ground truth
+
+Ours
+
+Fig. 5: Qualitative comparison on the EuRoC dataset. By exploiting optical flow for geometric learning, our approach preserves fine object boundaries and
+achieves more detailed reconstructions compared with other methods.
+TABLE III: Ablation analysis of GaussianFlow guidance for pose accuracy on
+TABLE V: Runtime comparison on MH05 of EuRoC dataset. Average FPS
+each sequence of EuRoC dataset [19]. (RMSE ATE [m], GFG: GaussianFlow
+is computed as the total number of processed images divided by the total
+guidance for DBA)
+wall-clock time. Rendering FPS reports 3DGS rasterization speed.
+M01
+
+M02
+
+M03
+
+M04
+
+M05
+
+V11
+
+V12
+
+V13
+
+V21
+
+V22
+
+V23
+
+w/o GFG 0.041 0.036 0.047 0.143 0.060 0.088 0.068 0.073 0.066 0.060 0.069
+Ours
+
+0.027 0.035 0.033 0.067 0.053 0.079 0.050 0.051 0.050 0.040 0.066
+
+TABLE IV: Ablation analysis of densification and pruning modules with
+average quantitative performances. (ODP: original densification and pruning
+module in 3DGS)
+
+ODP
+Ours
+
+PSNR↑
+
+EuRoC [19]
+SSIM↑
+LPIPS↓
+
+RMSE↓
+
+PSNR↑
+
+TUM RGB-D [20]
+SSIM↑ LPIPS↓
+
+RMSE↓
+
+20.704
+24.555
+
+0.725
+0.871
+
+0.070
+0.050
+
+23.502
+23.686
+
+0.808
+0.815
+
+0.020
+0.013
+
+0.351
+0.166
+
+0.197
+0.163
+
+methods. This is largely due to our tightly-coupled alternating
+design, which repeatedly interleaves 3DGS map optimization
+with multi-pose optimization. While this alternating loop
+becomes the main runtime bottleneck, it also enables us to
+exploit meaningful 3DGS-to-pose feedback, which we found
+beneficial for pose refinement. Table VI shows that the dominant cost comes from the 3DGS optimization modules within
+this loop. To characterize scalability as the map grows, we
+partition the sequence into bins based on the total number of
+Gaussians Nt and report the cumulative number of keyframes
+for indicating SLAM progress together with the average FPS
+within each bin, as shown in Table VII. We observe that FPS
+
+Method
+GaussianFlow SLAM (ours)
+MonoGS [11]
+MM3DGS-SLAM [13]
+Photo-SLAM [18]
+HI-SLAM2 [15]
+WildGS-SLAM [16]
+
+Average FPS ↑
+0.17
+3.44
+0.24
+18.59
+4.84
+0.83
+
+Rendering FPS ↑
+466
+235
+211
+788
+770
+461
+
+TABLE VI: Runtime breakdown of GaussianFlow SLAM on MH05 of EuRoC
+dataset. We report average computation time per frame.
+Component module
+Initial pose optimization
+3DGS map optimization
+GaussianFlow guidance
+DBA
+Total
+
+Time per frame (ms) ↓
+2,050
+3,605
+212
+58
+5,925
+
+gradually decreases with increasing Nt , suggesting that further
+efficiency gains could be obtained via more selective updates
+over Gaussians by reducing backward overhead in the kernels.
+In our setting, the map reaches ∼490k Gaussians with an 11%
+keyframe ratio.
+V. C ONCLUSION
+We presented GaussianFlow SLAM, the first monocular 3DGS-SLAM to integrate optical flow supervision with
+
+8
+
+IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. ACCEPTED APRIL, 2026
+
+TABLE VII: Scalability under map growth on MH05 of EuRoC dataset. We
+bin the SLAM progress by the total number of Gaussians Nt , and report the
+cumulative number of keyframes and the average FPS in each bin.
+Nt bin (# Gaussians)
+[0, 150k)
+[150k, 300k)
+[300k, 490k)
+
+Cumulative # keyframes
+48
+106
+246
+
+Average FPS ↑
+0.29
+0.17
+0.14
+
+closed-form analytic gradients. Our method not only corrects
+3DGS geometry but also demonstrates the benefit of GaussianFlow as a geometric cue in SLAM, achieving state-of-theart performances. Nonetheless, the system remains computeintensive due to repeated first-order 3DGS optimization in
+the tightly-coupled alternating loop, making it not real-time
+and necessitating reliance on the DBA module. Future work
+will explore second-order optimization in 3DGS to improve
+efficiency and reduce these dependencies.
+R EFERENCES
+[1] T. Qin, P. Li, and S. Shen, “VINS-Mono: A robust and versatile
+monocular visual-inertial state estimator,” IEEE Trans. Robot., vol. 34,
+no. 4, pp. 1004–1020, 2018.
+[2] C. Campos, R. Elvira, J. J. G. Rodrı́guez, J. M. Montiel, and J. D.
+Tardós, “ORB-SLAM3: An accurate open-source library for visual,
+visual–inertial, and multi-map SLAM,” IEEE Trans. Robot., vol. 37,
+no. 6, pp. 1874–1890, 2021.
+[3] H. Lim, J. Jeon, and H. Myung, “UV-SLAM: Unconstrained line-based
+SLAM using vanishing points for structural mapping,” IEEE Robot.
+Automat. Lett., vol. 7, no. 2, pp. 1518–1525, 2022.
+[4] J. Engel, V. Koltun, and D. Cremers, “Direct sparse odometry,” IEEE
+Trans. Pattern Anal. Mach. Intell., vol. 40, no. 3, pp. 611–625, 2017.
+[5] B. Mildenhall, P. P. Srinivasan, M. Tancik, J. T. Barron, R. Ramamoorthi,
+and R. Ng, “NeRF: Representing scenes as neural radiance fields for
+view synthesis,” Commun. ACM, vol. 65, no. 1, pp. 99–106, 2021.
+[6] J. T. Barron, B. Mildenhall, D. Verbin, P. P. Srinivasan, and P. Hedman,
+“Mip-NeRF 360: Unbounded anti-aliased neural radiance fields,” in
+Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2022, pp. 5470–
+5479.
+[7] B. Kerbl, G. Kopanas, T. Leimkühler, and G. Drettakis, “3D Gaussian
+splatting for real-time radiance field rendering.” ACM Trans. Graph.,
+vol. 42, no. 4, pp. 1–14, 2023.
+[8] N. Keetha, J. Karhade, K. M. Jatavallabhula, G. Yang, S. Scherer,
+D. Ramanan, and J. Luiten, “SplaTAM: Splat track & map 3D Gaussians
+for dense RGB-D SLAM,” in Proc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2024, pp. 21 357–21 366.
+[9] C. Yan, D. Qu, D. Xu, B. Zhao, Z. Wang, D. Wang, and X. Li, “GSSLAM: Dense visual SLAM with 3D Gaussian splatting,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2024, pp. 19 595–
+19 604.
+[10] Z. Peng, T. Shao, Y. Liu, J. Zhou, Y. Yang, J. Wang, and K. Zhou, “RTGSLAM: Real-time 3D reconstruction at scale using Gaussian splatting,”
+in Proc. ACM SIGGRAPH, 2024, pp. 1–11.
+[11] H. Matsuki, R. Murai, P. H. J. Kelly, and A. J. Davison, “Gaussian splatting SLAM,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit.,
+2024, pp. 18 039–18 048.
+[12] X. Lang, L. Li, H. Zhang, F. Xiong, M. Xu, Y. Liu, X. Zuo, and J. Lv,
+“Gaussian-LIC: Photo-realistic LiDAR-inertial-camera SLAM with 3D
+Gaussian splatting,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit., 2024, pp. 8500–8507.
+[13] L. C. Sun, N. P. Bhatt, J. C. Liu, Z. Fan, Z. Wang, T. E. Humphreys,
+and U. Topcu, “MM3DGS-SLAM: Multi-modal 3D Gaussian splatting
+for SLAM using vision, depth, and inertial measurements,” in Proc.
+IEEE/RSJ Int. Conf. Intell. Robot. Syst., 2024, pp. 10 159–10 166.
+[14] S. Yu, C. Cheng, Y. Zhou, X. Yang, and H. Wang, “RGB-only Gaussian
+splatting SLAM for unbounded outdoor scenes,” in Proc. IEEE Int. Conf.
+Robot. Automat., 2025.
+[15] W. Zhang, Q. Cheng, D. Skuddis, N. Zeller, D. Cremers, and N. Haala,
+“HI-SLAM2: Geometry-aware Gaussian SLAM for fast monocular
+scene reconstruction,” IEEE Trans. Robot., vol. 41, pp. 6478–6493,
+2025.
+[16] J. Zheng, Z. Zhu, V. Bieri, M. Pollefeys, S. Peng, and A. Iro, “WildGSSLAM: Monocular Gaussian splatting SLAM in dynamic environments,”
+in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2025, pp.
+11 461–11 471.
+
+[17] C. Schmidt, J. Piekenbrinck, and B. Leibe, “Look Gauss, No Pose:
+Novel view synthesis using Gaussian splatting without accurate pose
+initialization,” in Proc. IEEE/RSJ Int. Conf. Intell. Robot. Syst., 2024,
+pp. 8732–8739.
+[18] H. Huang, L. Li, C. Hui, and S.-K. Yeung, “Photo-SLAM: Real-time
+simultaneous localization and photorealistic mapping for monocular,
+stereo, and RGB-D cameras,” in Proc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2024, pp. 21 584–21 593.
+[19] M. Burri, J. Nikolic, P. Gohl, T. Schneider, J. Rehder, S. Omari, M. W.
+Achtelik, and R. Siegwart, “The EuRoC micro aerial vehicle datasets,”
+Int. J. Robot. Res., vol. 35, no. 10, pp. 1157–1163, 2016.
+[20] J. Sturm, N. Engelhard, F. Endres, W. Burgard, and D. Cremers, “A
+benchmark for the evaluation of RGB-D SLAM systems,” in Proc.
+IEEE/RSJ Int. Conf. Intell. Robot. Syst., 2012, pp. 573–580.
+[21] Z. Zhu, S. Peng, V. Larsson, W. Xu, H. Bao, Z. Cui, M. R. Oswald,
+and M. Pollefeys, “NICE-SLAM: Neural implicit scalable encoding for
+SLAM,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2022,
+pp. 12 786–12 796.
+[22] Z. Zhu, S. Peng, V. Larsson, Z. Cui, M. R. Oswald, A. Geiger, and
+M. Pollefeys, “NICER-SLAM: Neural implicit scene encoding for RGB
+SLAM,” in Proc. IEEE Int. Conf. 3D Vis., 2024, pp. 42–52.
+[23] A. Rosinol, J. J. Leonard, and L. Carlone, “NeRF-SLAM: Real-time
+dense monocular SLAM with neural radiance fields,” in Proc. IEEE/RSJ
+Int. Conf. Intell. Robot. Syst., 2023, pp. 3437–3444.
+[24] P. Geneva, K. Eckenhoff, W. Lee, Y. Yang, and G. Huang, “OpenVINS:
+A research platform for visual-inertial estimation,” in Proc. IEEE Int.
+Conf. Robot. Automat., 2020, pp. 4666–4672.
+[25] B. D. Lucas and T. Kanade, “An iterative image registration technique
+with an application to stereo vision,” in Proc. Int. Joint Conf. Artif.
+Intell., 1981, pp. 674–679.
+[26] W. Wang, Y. Hu, and S. Scherer, “TartanVO: A generalizable learningbased VO,” in Proc. Conf. Robot Learn., 2021, pp. 1761–1772.
+[27] Z. Min, Y. Yang, and E. Dunn, “VOLDOR: Visual odometry from loglogistic dense optical flow residuals,” in Proc. IEEE/CVF Conf. Comput.
+Vis. Pattern Recognit., 2020, pp. 4898–4909.
+[28] Z. Teed and J. Deng, “DROID-SLAM: Deep visual SLAM for monocular, stereo, and RGB-D cameras,” Adv. Neural Inf. Process. Syst., vol. 34,
+pp. 16 558–16 569, 2021.
+[29] Z. Teed, L. Lipson, and J. Deng, “Deep patch visual odometry,” Adv.
+Neural Inf. Process. Syst., vol. 36, pp. 39 033–39 051, 2023.
+[30] Z. Teed and J. Deng, “RAFT: Recurrent all-pairs field transforms for
+optical flow,” in Proc. Eur. Conf. Comput. Vis., 2020, pp. 402–419.
+[31] Q. Gao, Q. Xu, Z. Cao, B. Mildenhall, W. Ma, L. Chen, D. Tang,
+and U. Neumann, “GaussianFlow: Splatting Gaussian dynamics for 4D
+content creation,” arXiv preprint arXiv:2403.12365, 2024.
+[32] R. Zhu, Y. Liang, H. Chang, J. Deng, J. Lu, W. Yang, T. Zhang,
+and Y. Zhang, “MotionGS: Exploring explicit motion guidance for
+deformable 3D Gaussian splatting,” Adv. Neural Inf. Process. Syst.,
+vol. 37, pp. 101 790–101 817, 2024.
+[33] Y. Lin, Z. Dai, S. Zhu, and Y. Yao, “Gaussian-Flow: 4D reconstruction
+with dynamic 3D Gaussian particle,” in Proc. IEEE/CVF Conf. Comput.
+Vis. Pattern Recognit., 2024, pp. 21 136–21 145.
+[34] H. Zhou, J. Shao, L. Xu, D. Bai, W. Qiu, B. Liu, Y. Wang, A. Geiger, and
+Y. Liao, “HUGS: Holistic urban 3D scene understanding via Gaussian
+splatting,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit.,
+2024, pp. 21 336–21 345.
+[35] A. Paszke, S. Gross, F. Massa, A. Lerer, J. Bradbury, G. Chanan,
+T. Killeen, Z. Lin, N. Gimelshein, L. Antiga, et al., “PyTorch: An
+imperative style, high-performance deep learning library,” Adv. Neural
+Inf. Process. Syst., vol. 32, pp. 8024–8035, 2019.
+[36] C.-A. Deledalle, L. Denis, S. Tabti, and F. Tupin, “Closed-form expressions of the eigen decomposition of 2×2 and 3×3 Hermitian matrices,”
+Ph.D. dissertation, Université de Lyon, 2017.
+[37] J. Sola, J. Deray, and D. Atchuthan, “A micro Lie theory for state
+estimation in robotics,” arXiv preprint arXiv:1812.01537, 2018.
+[38] B. Triggs, P. F. McLauchlan, R. I. Hartley, and A. W. Fitzgibbon, “Bundle adjustment - a modern synthesis,” in Proc. International workshop
+on vision algorithms, 1999, pp. 298–372.
+[39] Y. Duan, F. Wei, Q. Dai, Y. He, W. Chen, and B. Chen, “4D-rotor
+Gaussian splatting: Towards efficient novel view synthesis for dynamic
+scenes,” in Proc. ACM SIGGRAPH, 2024, pp. 1–11.
+[40] S. Rota Bulò, L. Porzi, and P. Kontschieder, “Revising densification in
+Gaussian splatting,” in Proc. Eur. Conf. Comput. Vis. Springer, 2024,
+pp. 347–362.
+[41] M. Kong, J. Lee, S. Lee, and E. Kim, “DGS-SLAM: Gaussian splatting
+SLAM in dynamic environment,” arXiv preprint arXiv:2411.10722,
+2024.
+
+

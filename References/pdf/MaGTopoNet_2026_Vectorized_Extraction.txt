@@ -1,0 +1,1659 @@
+Beyond Endpoints: Path-Centric Reasoning for Vectorized Off-Road Network
+Extraction
+Wenfei Guan1
+
+Jilin Mei1
+
+Tong Shen2
+
+Xumin Wu2
+
+Shuo Wang1
+
+Chen Min1
+
+Yu Hu1,†
+
+1
+
+Institute of Computing Technology, Chinese Academy of Sciences
+Hangzhou Institute for Advanced Study, University of Chinese Academy of Sciences
+{guanwenfei24s, meijilin, wangshuo24z, minchen, huyu}@ict.ac.cn
+†
+
+Corresponding author
+
+Urban
+
+{shentong25, wuxumin25}@mails.ucas.ac.cn
+
+Off-road
+
+arXiv:2512.10416v3 [cs.CV] 8 Mar 2026
+
+2
+
+Source node
+
+Right edge
+
+Candidate node
+
+Wrong edge
+
+Sampled node
+
+Ambiguous edge
+
+Pair1
+
+Pair3
+Pair2
+
+Pair4
+
+Node-centric
+
+(a)
+
+Path-centric
+
+(b)
+
+Figure 1. Motivation for our work. (a) Advanced models like SAM-Road [41] perform well in urban environments but generate fragmented
+or topologically incorrect graphs in off-road scenes (failures highlighted in red), revealing a substantial domain gap and motivating our new
+large-scale off-road dataset. (b) Illustrating a key architectural weakness. Node-centric models reason about features at sparse endpoints.
+This makes them vulnerable in ambiguous cases: while Pair1 is a clear connection, the endpoint features of Pair2 are equally plausible,
+yet the path itself is incorrect. In contrast, our path-centric paradigm samples evidence along the entire path, allowing it to robustly accept
+correct edges (Pair3) and reject incorrect ones (Pair4), thus resolving the ambiguity. This insight motivates our path-centric approach.
+
+Abstract
+
+path-centric framework that aggregates multi-scale visual
+evidence along candidate paths to infer connectivity robustly. Extensive experiments show that MaGRoad achieves
+state-of-the-art performance on our challenging WildRoad
+benchmark while generalizing well to urban datasets. An
+efficient vertex extraction strategy also yields roughly 2.5×
+faster inference, improving practical applicability. Together, the dataset and path-centric paradigm provide a
+stronger foundation for mapping roads in the wild. We release both the dataset and code at this repository.
+
+Deep learning has advanced vectorized road extraction in
+urban settings, yet off-road environments remain underexplored and challenging. A significant domain gap causes
+advanced models to fail in wild terrains due to two key
+issues: lack of large-scale vectorized datasets and structural weakness in prevailing methods. Models such as
+SAM-Road [41] employ a node-centric paradigm that reasons at sparse endpoints, making them fragile to occlusions and ambiguous junctions in off-road scenes, leading
+to topological errors. This work addresses these limitations in two complementary ways. First, we release WildRoad, a gloabal off-road road network dataset constructed
+efficiently with a dedicated interactive annotation tool tailored for road-network labeling. Second, we introduce MaGRoad (Mask-aware Geodesic Road network extractor), a
+
+1. Introduction
+Accurate road network maps are foundational for navigation systems [27], autonomous driving [48, 49], disaster response [7, 12], and urban planning [17]. Deep learning has
+1
+
+enabled progress in extracting vectorized road graphs from
+satellite imagery, and methods such as SAM-Road [41] and
+SAM-Road++ [46] achieve strong results on urban benchmarks like City-Scale [18], SpaceNet [36], and GlobalScale [46]. Nevertheless, prior work focuses on wellstructured paved roads, leaving off-road environments underexplored.
+As autonomous systems move beyond cities to rural
+roads [2], remote sites [15], and challenging terrains [25],
+reliable maps become essential. Directly applying urbantrained models to off-road scenes leads to severe degradation. As shown in Fig. 1(a), SAM-Road performs well in
+urban settings but fails in off-road images, producing fragmentation, incorrect junction topology, and missed narrow
+or low-contrast tracks. A key reason is the absence of vectorized off-road datasets. Datasets such as DeepGlobe [13]
+include rural roads but provide only binary masks rather
+than graphs needed for topology evaluation.
+Constructing a large-scale vectorized off-road dataset
+is crucial but prohibitively expensive [4, 21]. To overcome this, we developed an efficient interactive annotation
+pipeline. Inspired by prompt-driven methods [22], our system generates initial road graph proposals from sparse user
+clicks on junctions and endpoints. These drafts are then
+refined by annotators in a web-based interface, a workflow that substantially reduces labeling time compared to
+fully manual annotation from scratch. Using this pipeline,
+we have assembled WildRoad, a new dataset of 221 highresolution images (8K × 4K, 0.3 m/pixel) covering 2,100
+km² across six continents.
+Our WildRoad dataset brings to light the distinct challenges of off-road environments, where road segments are
+frequently obscured and junctions lack clear geometric
+structure [24, 40]. These conditions expose a key architectural weakness in prominent models like the SAM-Road
+series. They are built on a node-centric paradigm, which determines connectivity by reasoning primarily about features
+at sparse endpoints. As visualized in Fig. 1(b), this reliance
+on endpoints is a critical flaw; The local features at candidate connection points tend to be similar and ambiguous,
+leaving the model with limited discriminative power to distinguish genuine road segments from spurious links without
+examining the entire path.
+Our key insight is that robust connectivity reasoning requires a fundamental shift from node-centric to path-centric
+thinking. Building on this, we propose MaGRoad, a framework designed for both robustness and efficiency. Its core
+module, MaGTopoNet, attains robustness by aggregating
+multi-scale visual evidence along the entire geodesic path of
+a candidate edge. This design enables the model to integrate
+contextual information, yielding greater resilience to weak
+textures and partial occlusions. Meanwhile, a unified nonmaximum suppression (NMS) [30] strategy for vertex ex-
+
+traction ensures efficiency and reduced computational cost.
+The key contributions of this work are summarized below:
+• We construct WildRoad, the first large-scale, continentspanning vectorized benchmark for off-road environments, enabled by a novel interactive annotation pipeline
+that significantly reduces manual labeling effort.
+• We propose MaGTopoNet, a path-centric topology module that pools multi-scale mask evidence along edges and
+encodes geometric compatibility, improving graph quality on off-road and urban data.
+• We introduce an efficient vertex extraction strategy based
+on unified NMS that improves inference speed and scalability for large-scale mapping.
+
+2. Related Work
+2.1. Road Network Extraction Methods
+Early deep learning approaches for road network extraction
+largely fell into two categories. The first, segmentationbased methods, treated the problem as pixel-wise classification [1, 5, 9, 16, 51]. Influential models like U-Net [31] and
+D-LinkNet [50] leveraged encoder-decoder architectures
+with features like dilated convolutions to capture multiscale context. While achieving high pixel-level accuracy,
+these methods produce raster masks that lack explicit topological structure. They depend on fragile post-processing
+steps, such as thinning [11, 39, 47], which often introduce
+artifacts and fail to preserve correct road connectivity. A
+second category, iterative methods [34, 35, 38, 44, 45], constructs road networks in a sequential manner. Models like
+RoadTracer [4] and VecRoad [34] start from seed points
+and use a learned policy to incrementally extend the graph.
+Although this approach can generate topologically accurate graphs, it is computationally expensive due to its autoregressive nature and is prone to error accumulation, where
+an early mistake can negatively affect subsequent results.
+The limitations of these earlier paradigms motivated the
+development of single-shot graph methods [3, 18, 33, 41,
+42], which infer the entire road network in a single pass.
+Models like Sat2Graph [18] and TopoRoad [10] pioneered
+techniques for encoding graph structure directly into a tensor representation for end-to-end training. Building on
+this, recent leading models, including SAM-Road [41] and
+SAM-Road++ [46], introduced a dedicated topology head
+called TopoNet. This module reasons about connectivity in
+a node-centric fashion, primarily relying on endpoint features and their geometric relationships.
+While this node-centric paradigm has proven effective
+on structured urban benchmarks, its reliance on local endpoint information is a fundamental vulnerability. In complex environments characterized by occlusions, ambiguous
+boundaries, or irregular junctions, inferring connectivity
+from endpoints alone becomes unreliable. The failure cases
+2
+
+Table 1. Comparison of road network extraction datasets. Bold letters denote dominant scene types (U: Urban, R: Rural, M: Mountain, W:
+Wild). Our WildRoad mainly focuses on wild scenes with unpaved roads, while others emphasize paved urban and suburban areas.
+Dataset
+
+Label
+
+Scene
+
+Massachusetts [26]
+DeepGlobe [13]
+SpaceNet [36]
+City-Scale [18]
+Global-Scale [46]
+
+Raster
+U, R
+Raster
+U, R
+Vector
+U
+Vector
+U
+Vector U, R, M
+
+WildRoad
+
+Vector
+
+W, R
+
+Train
+
+Val
+
+Test
+
+GSD (m/p) Area (km2 )
+
+Size
+2
+
+Region
+
+1,108 14
+49
+6,226 243 1,101
+2,167 –
+567
+144
+9
+27
+2,375 339 754
+
+1, 500
+1, 0242
+4002
+2, 0482
+2, 0482
+
+1.0
+0.5
+0.3
+1.0
+1.0
+
+2,600
+2,220
+3,011
+720
+13,800
+
+Thailand, Indonesia, India
+Paris, Vegas, Shanghai, Khartoum
+20 city in the U.S.
+
+154
+
+8k × 4k
+
+0.3
+
+2,100
+
+Global
+
+33
+
+34
+
+shown in Fig. 1(a), while intensified by the urban-to-offroad
+domain shift, perfectly illustrate the topological errors to
+which this design is inherently prone, such as fragmentation and incorrect connections. This fragility motivates our
+work to propose a more robust, path-centric alternative. Our
+model, MaGRoad, features a topology head, MaGTopoNet,
+that explicitly aggregates visual evidence along the entire
+length of a potential road segment, leading to more reliable
+connectivity reasoning in challenging conditions.
+
+Massachusetts
+
+Global
+
+jects, their prompt-based capabilities have not extended to
+vectorized road network annotation. Existing tools lack
+support for direct, interactive creation and refinement of
+graph topology. Our work explicitly fills this gap. We introduce a novel interactive pipeline that directly integrates
+user prompts into the end-to-end graph generation process,
+enabling efficient creation and curation of our new largescale WildRoad dataset.
+
+3. The WildRoad Dataset
+
+2.2. Datasets for Road Network Extraction
+
+In this section, we introduce WildRoad, a new benchmark
+for off-road road network extraction. The primary barrier
+to creating such a dataset is the prohibitive cost of manual
+vectorized annotation. To overcome this, we developed an
+AI-driven interactive pipeline and used iterative bootstrapping to efficiently curate the final collection.
+
+Road network datasets differ in both annotation format and
+geographic focus. Mask-annotated datasets, such as Massachusetts Roads [26] and DeepGlobe [13], provide pixellevel labels that are well suited for training segmentation
+models but lack the explicit graph structure required for
+topology evaluation. Massachusetts Roads covers urban,
+suburban, and rural regions with binary masks, while DeepGlobe offers over 8,000 satellite images at 0.5 m resolution from diverse global regions, yet its annotations remain
+raster-based. Vectorized datasets directly support graphbased analysis and connectivity assessment. Representative examples include SpaceNet [36], which provides road
+vectors for several major cities worldwide, City-Scale [18],
+which contains 180 high-resolution images across 20 U.S.
+cities, and the Global-Scale dataset [46], which extends
+coverage to more than 3,000 regions across six continents.
+OpenSatMap [49] further advances this direction with lanelevel annotations at 0.15 m resolution for highways and city
+streets. However, these resources predominantly focus on
+structured, well-paved urban and suburban roads. To our
+knowledge, no publicly available, large-scale dataset provides vectorized annotations for challenging off-road environments, a critical gap that our work aims to fill.
+
+3.1. Interactive Annotation Pipeline
+Our annotation process uses a novel interactive pipeline
+built into a web-based interface. To accelerate labeling,
+the system allows annotators to provide sparse clicks at
+key junctions and endpoints. These clicks are processed by
+an Interactive Prompt Branch (blue dashed in Fig. 2) into
+spatial prompts [43], which guide the model’s predictions.
+Within the tool, annotators can then refine these modelgenerated proposals by adding, deleting, or repositioning
+vertices and edges, achieving an efficient balance between
+automated assistance and human oversight. The system also
+supports high-resolution inputs and scales to large images
+given adequate resources. Further implementation details
+and visualizations of the tool are provided in the appendix.
+
+3.2. Dataset Bootstrapping
+Leveraging our interactive system, we constructed the offroad dataset using an efficient bootstrapping strategy with
+high-resolution RGB imagery sourced from Google Earth
+Pro [23, 29]. We began by annotating a small seed set of
+images to train an initial model. This model then generated proposals for new, unannotated regions, which human
+annotators corrected and refined. The newly labeled data
+was added to the training set to retrain and improve the
+
+2.3. Annotation Tools
+Traditional road mapping relies on manual digitization in
+GIS software such as QGIS [28] or ArcGIS [8], which
+is highly labor-intensive. Crowdsourced alternatives like
+OpenStreetMap [20] offer limited coverage for unpaved or
+off-road paths. While foundation models such as SAM [22]
+have revolutionized interactive segmentation for general ob3
+
+Add
+ViT
+
+Decoder
+
+Keypoint Mask
+
+Road Mask
+
+NMS
+
+Multi-Scale
+Pooling
+
+Prompt Encoder
+User
+
+Geometric Features
+
+Points
+Node Pairs
+
+Offset
+
+neg
+
+Distance
+Transform
+
+pos
+
+Edge Biased Attention
+
+Dist
+
+Angle
+
+Path Features
+
+Conv
+Edge Feature Encoder
+
+Mean
+
+Std
+
+Softmin
+
+Figure 2. Overview of the MaGRoad framework. The main automated pipeline (top-left) uses a ViT encoder-decoder to produce keypoint
+and road probability maps. An optional interactive branch (bottom-left) encodes user clicks to guide predictions during annotation. In the
+path-centric graph construction module (right), candidate vertices are first extracted via NMS and paired into edges. The Edge Feature
+Encoder then computes multi-scale path features by sampling the road map and combines them with geometric features. Finally, an
+attention mechanism processes these combined features to predict connectivity and form the final vectorized graph. Color cues: Blue
+dashed lines denote the interactive branch; green arrows indicate inference-only candidate generation steps.
+
+model. By iterating this cycle, the model’s proposals became progressively more accurate, substantially reducing
+the manual effort required per image. This iterative workflow enabled the efficient curation of a diverse dataset spanning forests, farmlands, deserts, and mountainous regions
+across six continents, including challenging cases such as
+tree shadows, shoreline ambiguities, and faint tracks that
+are difficult for existing methods to handle reliably. Tab. 1
+provides a comprehensive comparison with five representative datasets [4, 13, 26, 36, 46], highlighting differences
+in label type, road type, dominant scenes, image resolution,
+spatial coverage, and geographic scope.
+
+(𝑥𝑡 , 𝑦𝑡 )
+
+Edge
+
+(𝑥𝑠 , 𝑦𝑠 )
+
+Feature
+Encoder
+
+target
+
+𝑜𝑓𝑓𝑠𝑒𝑡
+
+(Δx , Δy )
+𝜃
+
+Geometric
+Feature
+
+𝑎𝑛𝑔𝑙𝑒
+
+𝑃1
+
+µ
+
+𝑃2
+
+𝜎
+
+𝑃𝑛
+
+𝑠𝑜𝑓𝑡𝑚𝑖𝑛
+
+…
+source
+
+𝑑𝑖𝑠𝑡
+
+Path
+Feature
+
+Figure 3. Edge feature encoder for connectivity prediction. Top:
+Geometric features encode spatial relationships between endpoint
+coordinates (offset, distance, angle). Bottom: Path features sample traversability values along the geodesic path from multi-scale
+road masks to compute mean, standard deviation, and softmin
+statistics. Both are concatenated for connectivity prediction.
+
+4. Model
+4.1. Overall Architecture
+
+4.2. Edge Feature Encoding
+
+As illustrated in Fig. 2, MaGRoad’s pipeline begins with
+a backbone encoder-decoder that produces keypoint and
+road-probability maps from the input image. Vertices (V )
+are extracted from the predicted masks via NMS and paired
+by proximity into candidate edges (Ecand ). Our core module, MaGTopoNet, then filters this candidate set by scoring
+each edge’s connectivity. It fuses geometric features with
+path features derived by sampling the road map, and an
+attention-based [32, 37] classifier makes the final decision,
+yielding the validated edge set (E) that forms the road graph
+G = (V, E). Importantly, the interactive prompt branch
+serves only for data annotation.
+
+As discussed in Sec. 1, node-centric methods rely on local
+endpoint features that are often ambiguous, especially under occlusions and at irregular junctions. Our edge feature
+encoding addresses this by capturing evidence along the entire candidate path. For each candidate edge (s, t) ∈ Ecand ,
+MaGTopoNet computes a connectivity score from two complementary signals (Fig. 3): path-based traversability from
+the road probability map, and geometric priors encoding the
+spatial relationship between endpoints.
+Geodesic path features. We extract path features from
+multi-scale road probability maps. Starting from the pre4
+
+dicted road mask Mroad ∈ [0, 1]H×W , we generate L = 3
+scales via average pooling with kernel sizes {3, 9, 15} to
+enhance robustness against noise and narrow occlusions.
+For each candidate edge (s, t) connecting endpoints s =
+(xs , ys ) and t = (xt , yt ), we uniformly sample Ns = 32
+s
+points {pi }N
+i=1 along the straight segment st (red dots in
+Fig. 3) and bilinearly interpolate probability values {Piℓ }
+from each scale ℓ.
+At each scale, we compute three complementary statistics that capture different aspects of path quality:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+4.4. Efficient Vertex Extraction
+We optimize the pipeline that converts predicted masks into
+candidate vertices. Previous approaches [41, 46] apply
+NMS independently to keypoint and road masks and then
+merge results with an additional NMS pass, requiring three
+separate suppression stages. We unify this into a single
+NMS pass by concatenating candidates from both masks,
+with a score offset (+0.9) for keypoint candidates to ensure
+their priority during suppression.
+Beyond this structural simplification, we address the
+core computational bottleneck in the NMS inner loop. The
+standard implementation performs batch array operations
+per neighbor, including fancy indexing, temporary array allocation, and batch memory writes, all of which incur substantial overhead despite O(N k log N ) overall complexity.
+Our refactored algorithm first sorts all candidates by score
+and then, for each point, directly suppresses every lowerscoring neighbor via scalar operations, avoiding intermediate arrays entirely. Together, these modifications achieve
+a 2.5× speedup on WildRoad (Tab. 2), offering a trade-off
+that boosts the F1 score when network completeness is prioritized over topological precision.
+
+N
+
+s
+1 X
+P ℓ,
+Ns i=1 i
+v
+u
+Ns
+u 1 X
+ℓ
+t
+σst =
+(P ℓ − µℓst )2 ,
+Ns i=1 i
+
+µℓst =
+
+(1)
+
+
+
+
+
+
+
+
+N
+s
+
+X
+
+
+1
+
+ℓ
+
+exp −τ (1 − Piℓ ) ,
+softminst = − log
+τ
+i=1
+ℓ
+where µℓst measures average traversability, σst
+quantifies along-path consistency (low values indicate uniform
+road likelihood), and softminℓst with temperature τ =
+5.0 emphasizes potential bottlenecks by penalizing lowprobability regions. Concatenating these statistics across all
+st
+scales yields the path feature fpath
+∈ R3L .
+Geometric features. In addition to path cues, we encode
+spatial properties of each candidate. For (s, t) with (xs , ys )
+and (xt , yt ), we compute: (i) offsets ∆x, ∆y normalized
+to [−1, 1]; (ii) Euclidean distance dst ; and (iii) bearing angle θst = arctan 2(∆y, ∆x) encoded with Fourier features
+st
+∈ R11 .
+{sin(mθ), cos(mθ)}4m=1 . These yield fgeo
+
+5. Experiments
+5.1. Datasets
+We evaluate MaGRoad on four benchmarks: our WildRoad
+for off-road scenarios, and three established urban datasets:
+City-Scale [18], SpaceNet [36], and Global-Scale [46]. WildRoad emphasizes challenging off-road terrains with heavy
+occlusion and faint tracks, while urban benchmarks assess
+generalization to structured road networks. Dataset statistics are provided in Tab. 1.
+
+4.3. Edge-Biased Attention
+
+5.2. Evaluation Metrics
+
+Given the encoded edge features, the remaining challenge
+is to select the correct connections from each source vertex’s candidate set. We address this with a self-attention
+mechanism that introduces geometric competition among
+candidates. Concretely, we form an edge token by const
+st
+catenating fgeo
+and fpath
+and project to a hidden dimension
+Dh = 256. Within each per-source candidate set, selfattention [32] uses an additive bias matrix B to inject geometric priors:
+
+
+QK⊤
+A = softmax √ + B ,
+(2)
+d
+
+We adopt graph-topology metrics that assess connectivity
+and geometric accuracy. APLS (Average Path Length Similarity) [36] measures graph similarity by comparing optimal path lengths between sampled point pairs, with values
+in [0, 1] where 1 indicates perfect agreement. TOPO [6]
+evaluates topology correctness by matching vertices within
+a distance threshold and measuring precision and recall of
+both vertices and edges. These metrics complement each
+other: APLS emphasizes path validity for navigation, while
+TOPO measures local graph structure fidelity.
+
+5.3. Implementation Details.
+
+where Bij = −λcomp I[i ̸= j] applies a uniform negative
+bias to all off-diagonal pairs. This competition term encourages sparse edge selection by penalizing simultaneous
+activation, allowing the model to select true connections
+while suppressing spurious pairings. The refined tokens are
+mapped to connectivity logits via an MLP head.
+
+We implement MaGRoad using a ViT-B [14] backbone pretrained on SAM [22]. Training uses patch-based sampling:
+1024×1024 patches with batch size 4 for our WildRoad
+dataset to capture sparse road structures, 512×512 patches
+with batch size 16 for City-Scale and Global-Scale, and
+5
+
+Table 2. Quantitative results on the WildRoad benchmark. MaGRoad sets a strong baseline. MaGRoad-fast denotes the version with our
+efficient vertex extraction strategy, which achieves the highest F1 score and a 2.5× speedup, introducing a trade-off with APLS.
+
+Method
+
+P↑
+
+R↑
+
+F1↑
+
+APLS↑
+
+APLS+F1↑
+
+Time (min)↓
+
+Sat2Graph [18]
+SAM-Road [41]
+SAM-Road++ [46]
+
+83.92
+87.20
+87.52
+
+57.50
+68.65
+68.69
+
+68.11
+76.61
+76.74
+
+48.73
+68.71
+69.72
+
+116.84
+145.32
+146.46
+
+133.1
+73.3
+76.1
+
+MaGRoad
+MaGRoad-fast
+
+88.45
+90.93
+
+71.48
+75.43
+
+78.85
+82.22
+
+72.56
+69.29
+
+151.41
+151.51
+
+74.9
+27.8
+
+256×256 patches with batch size 64 for SpaceNet. We sample 256 source vertices per patch for WildRoad and 512 for
+urban datasets to balance computational cost with topology coverage. For WildRoad, the segmentation branch is
+supervised by a combined Dice [19] and weighted BCE
+loss (positive weight 10 to handle class imbalance), while
+the topology head uses standard BCE loss. We employ
+the Adam optimizer with an initial learning rate of 1e-3
+for randomly initialized components and 1e-4 for the pretrained ViT encoder, decaying by 0.1 at 80% of total training epochs. Standard augmentations include random 90degree rotations and spatial cropping.
+Key hyperparameters are domain-specific: for WildRoad, we use a candidate search radius of r=200 pixels
+and multi-scale path pooling kernels of {3, 9, 15} to handle
+occlusions and sparse networks; for urban scenes, these are
+set to r=64 and {1, 5, 9}, respectively. The geodesic path
+sampling uniformly interpolates Ns =32 points along each
+candidate edge. At inference, mask and topology classification thresholds are tuned to maximize F1 score on the
+validation set. All experiments were conducted on four
+NVIDIA RTX 6000 GPUs.
+
+sions and correctly infer the network’s structure in sparsely
+connected residential areas (Fig. 4c) and unstructured dirt
+tracks (Fig. 4d). These results confirm that our path-centric
+approach is more robust to the visual ambiguity in off-road
+scenes, directly translating to superior performance.
+
+5.5. Generalization to Urban Datasets
+To confirm that our path-centric design is a generalizable
+improvement and not overfit to off-road scenes, we evaluated MaGRoad on three urban datasets. As shown in Tab. 3,
+the results reveal a consistent and insightful trend.
+
+Method
+
+P↑
+
+R↑
+
+F1↑
+
+APLS↑
+
+City-Scale
+
+Sat2Graph [18]
+RNGDet++ [44]
+SAM-Road [41]
+SAM-Road++ [46]
+MaGRoad
+
+80.70
+85.65
+90.47
+88.39
+84.46
+
+72.28
+72.58
+67.69
+73.39
+72.66
+
+76.26
+78.44
+77.23
+80.01
+78.11
+
+63.14
+67.76
+68.37
+68.34
+71.27
+
+SpaceNet
+
+Sat2Graph [18]
+RNGDet++ [44]
+SAM-Road [41]
+SAM-Road++ [46]
+MaGRoad
+
+85.93
+91.34
+93.03
+93.68
+87.72
+
+76.55
+75.24
+70.97
+72.23
+81.01
+
+80.97
+82.51
+80.52
+81.57
+84.23
+
+64.43
+67.73
+71.64
+73.44
+72.29
+
+Global-Scale
+(In-Domain)
+
+Sat2Graph [18]
+RNGDet++ [44]
+SAM-Road [41]
+SAM-Road++ [46]
+MaGRoad
+
+90.15
+79.02
+91.93
+88.95
+80.01
+
+22.13
+45.23
+45.64
+49.27
+52.90
+
+35.53
+55.04
+59.80
+62.33
+62.68
+
+26.77
+52.72
+59.08
+62.19
+60.16
+
+Global-Scale
+(Out-of-Domain)
+
+Table 3. Quantitative comparison on City-Scale, SpaceNet, and
+Global-Scale datasets. MaGRoad achieves competitive performance across all datasets.
+
+Sat2Graph [18]
+RNGDet++ [44]
+SAM-Road [41]
+SAM-Road++ [46]
+MaGRoad
+
+84.73
+70.22
+84.54
+82.21
+77.27
+
+19.75
+35.71
+33.81
+36.04
+36.47
+
+30.64
+47.34
+46.64
+48.34
+48.23
+
+22.49
+38.08
+40.51
+43.17
+41.26
+
+5.4. Results on WildRoad
+We evaluate MaGRoad against leading methods on our
+challenging WildRoad test set. The quantitative results, presented in Tab. 2, show that our baseline method establishes a
+new state-of-the-art. Notably, it surpasses the previous best,
+SAM-Road++, in both graph completeness (F1 score) and
+topological accuracy (APLS), underscoring the effectiveness of its core design. Furthermore, our optimized version,
+MaGRoad-fast, pushes the F1 score even higher, achieving
+82.22 through an efficient vertex extraction strategy, which
+we analyze in detail in Sec. 5.6.
+The visual comparisons in Fig. 4 provide direct insight into this quantitative advantage. Node-centric baselines like SAM-Road and SAM-Road++ consistently produce fragmented graphs where roads are occluded by tree
+cover (Fig. 4a) and fail to resolve the correct topology at
+complex, non-standard junctions (Fig. 4b). In contrast,
+MaGRoad’s ability to aggregate evidence along the entire
+path allows it to maintain connectivity through these occlu-
+
+Across all urban datasets, MaGRoad demonstrates a distinct and consistent strength in recall, achieving the highest
+6
+
+Ground Truth
+
+SAM-Road
+
+SAM-Road++
+
+Ours
+
+(a)
+
+(b)
+
+(c)
+
+(d)
+
+Figure 4. Visual comparison of road network predictions on challenging scenes. Please zoom in and view in color. Our method exhibits
+superior robustness across diverse scenarios. In (a) and (b), it yields more accurate topology around complex crossroads and curved
+intersections. In (c), it achieves more complete connectivity in low-contrast residential areas, while in (d), it better preserves continuity in
+unstructured environments. Blue circles indicate regions where our method outperforms previous approaches.
+
+5.6. Ablation Studies
+
+scores on SpaceNet and both splits of Global-Scale. This
+tendency towards producing more complete road networks
+is a direct benefit of our path-centric paradigm, which excels at identifying true connections by aggregating rich visual evidence along an entire path rather than relying solely
+on ambiguous endpoint features.
+
+We conduct ablation studies on the WildRoad test set to systematically evaluate the contribution of each key component
+in our model. The results are presented in Tab. 4.
+Analysis of MaGTopoNet Components. Our primary ablation examines the synergy among path features (P), geometric features (G), and edge-biased attention (E) in our
+full path-centric model (Exp 6). Removing any component causes a significant performance drop. Most critically,
+omitting path features (Exp 4) drops APLS by nearly 10
+points, confirming that aggregating evidence along the path
+is essential for topology reasoning. Geometric features and
+edge-biased attention provide powerful complementary priors; removing them also degrades performance, with attention proving especially vital for encoding geometric com-
+
+This high recall translates into highly competitive or
+state-of-the-art F1 scores. On SpaceNet, for instance,
+MaGRoad achieves the best overall F1 score. While
+precision-focused models like SAM-Road++ show their
+own strengths, our method provides a powerful alternative
+for applications where network completeness is paramount.
+These results confirm that path-centric reasoning is a fundamentally robust and valuable approach for road network
+extraction across diverse environments.
+7
+
+Exp 6
+
+Table 4. Ablation study on the WildRoad test set, analyzing the
+contributions of different feature types. N: Node feature, P: Path
+feature, G: Geometric feature, E: Edge-biased attention. Exp 6
+represents our full path-centric model.
+Exp
+
+N
+
+
+
+
+1
+2
+3
+4
+5
+6
+7
+8
+
+P
+
+
+
+
+
+
+
+
+G
+
+
+
+
+
+
+
+
+E
+
+
+
+
+
+
+P↑
+
+R↑
+
+F1↑
+
+APLS↑
+
+79.83
+84.62
+80.09
+82.45
+86.77
+88.45
+
+69.74
+63.30
+62.01
+62.96
+66.94
+71.48
+
+74.27
+75.97
+70.36
+71.24
+75.36
+78.85
+
+53.90
+63.77
+62.66
+63.07
+68.10
+72.56
+
+88.16
+87.86
+
+69.48
+69.20
+
+77.53
+77.23
+
+69.51
+69.07
+
+sign, demonstrating it is crucial for handling variable road
+widths and occlusions.
+Efficient Vertex Extraction. Finally, we analyze our efficient vertex extraction strategy, which replaces the multistage NMS with a single, unified pass. As shown in Tab. 2,
+this optimized model (MaGRoad-fast) demonstrates a key
+trade-off between vertex recall and topological precision.
+The unified NMS is less aggressive, yielding a denser vertex set. This significantly boosts recall and pushes the F1
+score to a new state-of-the-art of 82.22, at the cost of minor
+topological noise that lowers the APLS score. For applications where throughput and network completeness are critical, MaGRoad-fast offers a compelling 2.5× speedup and a
+higher F1 score, highlighting our framework’s flexibility.
+
+6. Conclusion
+We addressed off-road vectorized road extraction by introducing WildRoad, the first continent-spanning benchmark, and MaGRoad, a path-centric framework aggregating multi-scale evidence along candidate paths for robust
+connectivity inference. MaGRoad achieves state-of-theart results on WildRoad and generalizes to urban datasets,
+demonstrating that path-centric reasoning is a stronger
+foundation for road extraction beyond urban settings.
+
+Table 5. Ablation study on multi-avg pool configurations.
+
+F1
+
+{1,7,13}
+
+{3,9,15}
+
+{1,5,9}
+
+{3,9}
+
+{9}
+
+70.43
+
+72.56
+
+70.35
+
+68.88
+
+69.17
+
+77.26
+
+78.85
+
+78.61
+
+75.99
+
+75.97
+
+Exp 8
+
+Figure 5. Visual comparison of key ablation models. The nodecentric model (Exp 7) produces erroneous topological “shortcuts”,
+whereas our path-centric model (Exp 6) correctly infers the underlying structure, demonstrating its robustness to ambiguity.
+
+patibility and achieving a high F1 score.
+Path-centric vs. Node-centric Features. To understand the distinct roles of these feature types, we compare our path-centric model (Exp 6) against a strong nodecentric baseline (Exp 7), following the approach of SAMRoad [41]. As shown in the table, our path-centric approach
+outperforms the node-centric baseline on both F1 and, most
+critically, the topological metric APLS. This demonstrates
+that for challenging off-road scenes, reasoning along the entire path is superior for ensuring both topological integrity
+and correct local connectivity.
+Interestingly, combining both feature types (Exp 8) does
+not improve results. As visualized in Fig. 5, the combined
+model inherits the failure modes of the node-centric approach, producing similar topological errors to Exp 7. This
+suggests that for visually ambiguous scenes, the explicit signal from our path features provides a more robust basis for
+classification than the implicit information from endpoints,
+reinforcing that an explicit path-centric paradigm is a more
+effective approach for this task.
+
+kernel
+metrics
+APLS
+
+Exp 7
+
+Multi-Scale Path Aggregation. We also study the configuration of the multi-scale average pooling for path feature extraction. As shown in Tab. 5, using pooling kernels
+of sizes3, 9, 15 yields the best performance. This configuration effectively balances fine-grained local details and
+broader context. Other multi-scale settings like 1, 7, 13
+and 1, 5, 9 result in a noticeable performance drop, particularly in APLS. More importantly, using fewer scales such
+as 3, 9 or single-scale 9 leads to a significant degradation
+in both metrics. These findings validate our multi-scale de-
+
+Acknowledgments
+This work was supported by National Natural Science Foundation of China under Grant No.U23B2034
+and No.62176250, Beijing Natural Science Foundation (L259015 and L259049), and the Innovation
+Program of Institute of Computing Technology, Chinese Academy of Sciences under Grant No. 2024000112.
+
+8
+
+References
+
+and Ramesh Raskar. Deepglobe 2018: A challenge to parse
+the earth through satellite images. In Proceedings of the
+IEEE Conference on Computer Vision and Pattern Recognition Workshops (CVPRW), pages 172–181, 2018. 2, 3, 4
+[14] Alexey Dosovitskiy. An image is worth 16x16 words:
+Transformers for image recognition at scale. arXiv preprint
+arXiv:2010.11929, 2020. 5
+[15] Elliot S Duff, Jonathan M Roberts, and Peter I Corke.
+Automation of an underground mining vehicle using reactive navigation and opportunistic localization. In Proceedings 2003 IEEE/RSJ International Conference on Intelligent
+Robots and Systems (IROS 2003)(Cat. No. 03CH37453),
+pages 3775–3780. IEEE, 2003. 2
+[16] Xun Gao, Xian Sun, Yi Zhang, Menglong Yan, Guangluan
+Xu, Hao Sun, Jiao Jiao, and Kun Fu. An end-to-end neural
+network for road extraction from remote sensing imagery by
+multiple feature pyramid network. IEEE Access, 6:39401–
+39414, 2018. 2
+[17] Taeoh Ha, Jeongwoo Oh, Gunmin Lee, Jaeseok Heo,
+Do Hyung Kim, Byungkyu Park, Chang-Gun Lee, and
+Songhwai Oh. Rianet++: Road graph and image attention
+networks for robust urban autonomous driving under road
+changes. IEEE Robotics and Automation Letters, 8(11):
+7815–7822, 2023. 1
+[18] Songtao He, Favyen Bastani, Satvat Jagwani, Mohammad
+Alizadeh, Hari Balakrishnan, Sanjay Chawla, Mohamed M
+Elshrif, Samuel Madden, and Mohammad Amin Sadeghi.
+Sat2graph: Road graph extraction through graph-tensor encoding. In Proceedings of the European Conference on Computer Vision (ECCV), pages 51–67, 2020. 2, 3, 5, 6
+[19] Shruti Jadon. A survey of loss functions for semantic segmentation. In 2020 IEEE conference on computational
+intelligence in bioinformatics and computational biology
+(CIBCB), pages 1–7. IEEE, 2020. 6
+[20] Pascal Kaiser, Jan Dirk Wegner, Aurelien Lucchi, Martin
+Jaggi, Thomas Hofmann, and Konrad Schindler. Learning
+aerial image segmentation from online maps. IEEE Transactions on Geoscience and Remote Sensing, 55(11):6054–
+6068, 2017. 3
+[21] M Kelly et al. Maintaining accurate, current, rural road network data: An extraction and updating routine using rapideye, participatory gis and deep learning. International Journal of Applied Earth Observation and Geoinformation, 2020.
+2
+[22] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao,
+Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer Whitehead, Alexander C Berg, Wan-Yen Lo, et al. Segment
+anything. In Proceedings of the IEEE/CVF International
+Conference on Computer Vision (ICCV), pages 4015–4026,
+2023. 2, 3, 5
+[23] Richard J Lisle. Google earth: a new geological resource.
+Geology today, 22(1):29–32, 2006. 3
+[24] Miguel Lourenço, Diogo Estima, Henrique Oliveira, Luı́s
+Oliveira, and André Mora. Automatic rural road centerline
+detection and extraction from aerial images for a forest fire
+decision support system. Remote Sensing, 15(1):271, 2023.
+2
+
+[1] Abolfazl Abdollahi, Biswajeet Pradhan, and Abdullah
+Alamri. Vnet: An end-to-end fully convolutional neural network for road extraction from high-resolution remote sensing data. Ieee Access, 8:179424–179436, 2020. 2
+[2] Melika Ansarinejad, Kian Ansarinejad, Pan Lu, Ying Huang,
+and Denver Tolliver. Autonomous vehicles in rural areas: A
+review of challenges, opportunities, and solutions. Applied
+Sciences, 15(8):4195, 2025. 2
+[3] Gaetan Bahl, Mehdi Bahri, and Florent Lafarge. Singleshot end-to-end road graph extraction. In Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, pages 1403–1412, 2022. 2
+[4] Favyen Bastani, Songtao He, Sofiane Abbar, Mohammad Alizadeh, Hari Balakrishnan, Sanjay Chawla, Sam Madden,
+and David DeWitt. Roadtracer: Automatic extraction of
+road networks from aerial images. In Proceedings of the
+IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 4720–4728, 2018. 2, 4
+[5] Anil Batra, Suriya Singh, Guan Pang, Saikat Basu, CV Jawahar, and Manohar Paluri. Improved road connectivity by joint
+learning of orientation and segmentation. In Proceedings of
+the IEEE/CVF conference on computer vision and pattern
+recognition, pages 10385–10393, 2019. 2
+[6] James Biagioni and Jakob Eriksson. Inferring road maps
+from global positioning system traces: Survey and comparative evaluation. Transportation research record, 2291(1):
+61–71, 2012. 5
+[7] Piero Boccardo and Fabio Giulio Tonolo. Remote sensing
+role in emergency mapping for disaster response. In Engineering Geology for Society and Territory-Volume 5: Urban
+Geology, Sustainable Planning and Landscape Exploitation,
+pages 17–24. Springer, 2014. 1
+[8] Bob Booth, Andy Mitchell, et al. Getting started with arcgis,
+2001. 3
+[9] Hao Chen, Zhenghong Li, Jiangjiang Wu, Wei Xiong, and
+Chun Du. Semiroadexnet: A semi-supervised network for
+road extraction from remote sensing imagery via adversarial learning. ISPRS Journal of Photogrammetry and Remote
+Sensing, 198:169–183, 2023. 2
+[10] Zhenhua Chen, Liang Wang, Jun Zhu, Deyu Meng, and GuiSong Xia. Topology-guided road graph extraction from remote sensing images. IEEE Transactions on Geoscience and
+Remote Sensing, 60:1–14, 2022. 2
+[11] Guangliang Cheng, Ying Wang, Shibiao Xu, Hongzhen
+Wang, Shiming Xiang, and Chunhong Pan. Automatic road
+detection and centerline extraction via cascaded end-to-end
+convolutional neural network. IEEE Transactions on Geoscience and Remote Sensing, 55(6):3322–3337, 2017. 2
+[12] National Research Council, Division on Earth, Board on
+Earth Sciences, Mapping Science Committee, Committee
+on Planning for Catastrophe, A Blueprint for Improving
+Geospatial Data, Tools, and Infrastructure. Successful response starts with a map: improving geospatial support for
+disaster management. National Academies Press, 2007. 1
+[13] Ilke Demir, Krzysztof Koperski, David Lindenbaum, Guan
+Pang, Jing Huang, Saikat Basu, Forest Hughes, Devis Tuia,
+
+9
+
+[40] Lukas Winiwarter, Nicholas C Coops, Alex Bastyr, JeanRomain Roussel, Daisy QR Zhao, Clayton T Lamb, and
+Adam T Ford. Extraction of forest road information from
+cubesat imagery using convolutional neural networks. Remote Sensing, 16(6):1083, 2024. 2
+[41] Congrui Xia, Haoru Zhang, Cindy Zhou, Vitória Guardieiro
+de Sá, Bertrand Le Saux, and Xiang Li. Segment anything
+model for road network graph extraction. In Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition (CVPR), pages 3656–3665, 2024. 1, 2, 5, 6, 8
+[42] Jiakun Xu, Bowen Xu, Gui-Song Xia, Liang Dong, and Nan
+Xue. Patched line segment learning for vector road mapping.
+In Proceedings of the AAAI Conference on Artificial Intelligence, pages 6288–6296, 2024. 2
+[43] Ning Xu, Brian Price, Scott Cohen, Jimei Yang, and
+Thomas S Huang. Deep interactive object selection. In Proceedings of the IEEE conference on computer vision and pattern recognition, pages 373–381, 2016. 3
+[44] Zhenhua Xu, Yuxuan Liu, Yuxiang Sun, Ming Liu, and Lujia
+Wang. Rngdet++: Road network graph detection by transformer with instance segmentation and multi-scale features
+enhancement. IEEE Robotics and Automation Letters, 8(5):
+2991–2998, 2023. 2, 6
+[45] Wenhao Yu and Mengqi Liu. An iterative framework with
+active learning to match segments in road networks. Cartography and Geographic Information Science, 50(4):333–350,
+2023. 2
+[46] Haoru Zhang, Congrui Xia, Cindy Zhou, Vitoria Guardieiro,
+Bertrand Le Saux, and Xiang Li. Towards satellite image
+road graph extraction: A global-scale dataset and a novel
+method. In Proceedings of the IEEE/CVF Conference on
+Computer Vision and Pattern Recognition (CVPR), pages
+3672–3681, 2024. 2, 3, 4, 5, 6
+[47] Tongjie Y Zhang and Ching Y. Suen. A fast parallel algorithm for thinning digital patterns. Communications of the
+ACM, 27(3):236–239, 1984. 2
+[48] Hang Zhao, Jiyang Gao, Tian Lan, Chen Sun, Ben Sapp,
+Balakrishnan Varadarajan, Yue Shen, Yi Shen, Yuning Chai,
+Cordelia Schmid, et al. Tnt: Target-driven trajectory prediction. In Conference on robot learning, pages 895–904.
+PMLR, 2021. 1
+[49] Hongbo Zhao, Lue Fan, Yuntao Chen, Haochen Wang, Xiaojuan Jin, Yixin Zhang, Gaofeng Meng, Zhao-Xiang Zhang,
+et al. Opensatmap: A fine-grained high-resolution satellite
+dataset for large-scale map construction. Advances in Neural Information Processing Systems, 37:59216–59235, 2024.
+1, 3
+[50] Lichen Zhou, Chuang Zhang, and Ming Wu. D-linknet:
+Linknet with pretrained encoder and dilated convolution for
+high resolution satellite imagery road extraction. In Proceedings of the IEEE Conference on Computer Vision and Pattern
+Recognition Workshops (CVPRW), pages 182–186, 2018. 2
+[51] Qiqi Zhu, Yanan Zhang, Lizeng Wang, Yanfei Zhong,
+Qingfeng Guan, Xiaoyan Lu, Liangpei Zhang, and Deren Li.
+A global context-aware and batch-independent network for
+road extraction from vhr satellite imagery. ISPRS Journal of
+Photogrammetry and Remote Sensing, 175:353–365, 2021.
+2
+
+[25] Chen Min, Shubin Si, Xu Wang, Hanzhang Xue, Weizhong
+Jiang, Yang Liu, Juan Wang, Qingtian Zhu, Qi Zhu, Lun Luo,
+et al. Autonomous driving in unstructured environments:
+How far have we come? arXiv preprint arXiv:2410.07701,
+2024. 2
+[26] Volodymyr Mnih. Machine learning for aerial image labeling. University of Toronto (Canada), 2013. 3, 4
+[27] Sherif AS Mohamed, Mohammad-Hashem Haghbayan,
+Tomi Westerlund, Jukka Heikkonen, Hannu Tenhunen, and
+Juha Plosila. A survey on odometry for autonomous navigation systems. IEEE access, 7:97466–97486, 2019. 1
+[28] Nicolas Moyroud and Frédéric Portet. Introduction to qgis.
+QGIS and generic tools, 1:1–17, 2018. 3
+[29] Onisimo Mutanga and Lalit Kumar. Google earth engine
+applications, 2019. 3
+[30] Alexander Neubeck and Luc Van Gool. Efficient nonmaximum suppression. In 18th international conference on
+pattern recognition (ICPR’06), pages 850–855. IEEE, 2006.
+2
+[31] Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-net:
+Convolutional networks for biomedical image segmentation.
+In International Conference on Medical Image Computing
+and Computer-Assisted Intervention (MICCAI), pages 234–
+241, 2015. 2
+[32] Peter Shaw, Jakob Uszkoreit, and Ashish Vaswani. Selfattention with relative position representations.
+arXiv
+preprint arXiv:1803.02155, 2018. 4, 5
+[33] Suprosanna Shit, Rajat Koner, Bastian Wittmann, Johannes
+Paetzold, Ivan Ezhov, Hongwei Li, Jiazhen Pan, Sahand
+Sharifzadeh, Georgios Kaissis, Volker Tresp, et al. Relationformer: A unified framework for image-to-graph generation.
+In European conference on computer vision, pages 422–439.
+Springer, 2022. 2
+[34] Yong-Qiang Tan, Shang-Hua Gao, Xuan-Yi Li, Ming-Ming
+Cheng, and Bo Ren. Vecroad: Point-based iterative graph
+exploration for road graphs extraction. In Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, pages 8910–8918, 2020. 2
+[35] Yong-Qiang Tan, Shang-Hua Gao, Xuan-Yi Li, Ming-Ming
+Cheng, and Bo Ren. Iterative deep graph learning for road
+network extraction. In IEEE Transactions on Pattern Analysis and Machine Intelligence, pages 8451–8469, 2023. 2
+[36] Adam Van Etten, Dave Lindenbaum, and Todd M Bacastow.
+Spacenet: A remote sensing dataset and challenge series.
+arXiv preprint arXiv:1807.01232, 2018. 2, 3, 4, 5
+[37] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia
+Polosukhin. Attention is all you need. Advances in neural
+information processing systems, 30, 2017. 4
+[38] Carles Ventura, Jordi Pont-Tuset, Sergi Caelles, KevisKokitsi Maninis, and Luc Van Gool.
+Iterative deep
+learning for road topology extraction.
+arXiv preprint
+arXiv:1808.09814, 2018. 2
+[39] Wen Wen and Wenhui Zhang. Research on urban road network extraction based on web map api hierarchical rasterization and improved thinning algorithm. Sustainability, 14
+(21):14363, 2022. 2
+
+10
+
+Beyond Endpoints: Path-Centric Reasoning for Vectorized Off-Road Network
+Extraction
+Supplementary Material
+7. Training the Interactive Model
+
+Algorithm 1 Positive and Negative Prompt Generation
+
+A core component of our annotation pipeline is the interactive model that generates graph proposals from sparse user
+clicks. To achieve this, we employ an end-to-end training
+paradigm that learns to interpret user intent without requiring real-time human interaction during the training phase.
+The primary challenge is bridging the gap between a static
+training setup and a dynamic interactive task. We overcome
+this by introducing a strategy to simulate user prompts, enabling the model to learn the mapping from sparse spatial
+cues to dense road network structures.
+
+Require: GT graph G = (V, E); A distmin radius; Number
+of positive prompts Npos and negative prompts Nneg .
+Ensure: A set of simulated and jittered prompt points P .
+1: function S IMULATE P ROMPT P OINTS(G, Npos , Nneg )
+2:
+3:
+4:
+5:
+6:
+7:
+
+7.1. Simulated Prompt Generation
+
+8:
+9:
+10:
+11:
+12:
+
+During training, we simulate user clicks by automatically
+sampling positive and negative points from the ground-truth
+annotations.
+• Positive prompts are sampled from topologically significant locations on the ground-truth graph. Specifically,
+we identify all vertices that are either junctions (degree >
+2) or endpoints (degree = 1). A random subset of these
+keypoints is selected to serve as positive guidance for the
+model.
+• Negative prompts are sampled from background regions
+to prevent spurious graph generation. To ensure these
+points are not sampled too close to road boundaries,
+which could create ambiguity for the model, we first establish a buffer zone by dilating the ground-truth road
+mask with a radius of distmin . Negative points are then
+exclusively sampled from the area outside this buffer, representing unambiguous non-road regions.
+To enhance the model’s robustness to imprecise clicks, we
+apply a minor random spatial jitter to the coordinates of all
+sampled points. This process is detailed in Algorithm 1.
+
+Vkey ← {v ∈ V | degree(v) ̸= 2}
+Ppos ← RandomSample(Vkey , Npos )
+Mroad ← RasterizeToMask(G)
+K ← CreateStructuringElement(radius = distmin )
+Mbuffer ← MorphologicalDilation(Mroad , K)
+Abackground ← ¬Mbuffer
+Pneg ← RandomSampleFromArea(Abackground , Nneg )
+
+Pcombined ← Ppos ∪ Pneg
+P ← ApplySpatialJitter(Pcombined )
+13:
+return P
+14: end function
+
+graph prediction as shown in the interactive branch of our
+main pipeline (see Fig. 2 in the main paper).
+
+7.3. Implementation Details
+For reproducibility, we specify the key hyperparameters for
+the prompt simulation. We sample up to Npos = 10 positive prompts, with the number of negative prompts set by
+a 1:1 ratio. The buffer radius for negative sampling is
+distmin = 50 pixels, and a spatial jitter with a standard deviation of 3.0 pixels is applied to all prompt coordinates. The
+interactive training is conducted on 1024×1024 patches,
+and critical training parameters such as batch size, learning rate, and optimizer settings are kept identical to those of
+the baseline automated model. The only additions are the
+prompt simulation and feature fusion steps; the loss function and optimization process remain unchanged, highlighting the efficiency of our approach.
+
+7.2. Prompt Encoding and Feature Fusion
+The simulated point prompts are transformed into a spatial
+representation that can be fused with the image features.
+Given a set of prompt coordinates P = {pi }, we first compute a distance transform map D ∈ RH×W , where each
+pixel (u, v) stores the minimum Euclidean distance to any
+point in P . This distance map is then processed by a shallow convolutional encoder (two 3×3 conv layers) to produce a multi-channel prompt feature map, Fprompt . This feature map is fused with the image features, Fimage , from the
+main ViT encoder via element-wise addition. The resulting
+fused features, Ffused = Fimage + Fprompt , are then passed
+to the geometry decoder, effectively guiding the final road
+
+8. The Interactive Annotation System
+To operationalize our interactive framework, we developed
+a full-featured, web-based annotation tool. This section details its user interface (UI) and the AI-assisted workflow that
+enables rapid and accurate road network labeling.
+1
+
+Figure 6. The user interface of our annotation tool, featuring the primary editing toolbar in Region ① and the main control and information
+panel in Region ②, both designed for an intuitive and efficient user experience.
+
+8.1. User Interface Overview
+
+are sparse. To overcome this, we developed a promptdriven, overlapping patch-based inference pipeline. This
+strategy ensures that computation is focused exclusively on
+the user’s regions of interest, enabling a smooth and highly
+efficient interactive experience. The process, detailed in Algorithm 2, consists of three key stages.
+
+The annotation tool, shown in Figure 6, is designed for
+clarity and efficiency. The UI is centered around a main
+canvas displaying the satellite imagery. The core functionalities are split between two main areas. Region ① contains the primary editing toolbar, which supports three distinct modes: a View mode for free panning and zooming;
+a Label mode, which is the core of the interactive process where users can place positive (left-click) and negative (right-click) prompts; and an Edit mode for fine-grained
+manual adjustments to the generated graph, such as moving
+vertices or adding and deleting edges. Region ② serves as
+the main control and information panel, handling data I/O,
+providing options for pre-computing image features to accelerate inference, listing prompt point coordinates, managing display layers, and housing the main “Auto-run” and
+“Save Results” buttons. Additionally, a persistent status bar
+provides helpful auxiliary information, such as full image
+dimensions and real-time cursor coordinates, to aid annotators with spatial awareness and precise editing.
+
+Stage 1: Prompt-Guided Mask Generation. The large
+input image is first partitioned into a grid of 1024×1024
+patches with a significant overlap (e.g., 256 pixels) to prevent artifacts at the boundaries. The inference process is
+initiated by and centered around the user’s sparse prompts.
+When the user clicks “Auto-run”, the system first identifies
+the minimal set of 1024×1024 patches required to cover
+all prompt points. Inference is run only on this active subset of patches to produce local road and keypoint probability maps. These generated local maps are then seamlessly
+stitched together into a unified global map for the relevant
+region. In overlapping areas, pixel values are blended via a
+weighted average to ensure smooth transitions.
+
+8.2. Large-Scale Image Inference
+
+Stage 2: Vertex Extraction and Topological Inference.
+From the fused global keypoint map, a consistent set of candidate vertices is extracted via Non-Maximum Suppression
+(NMS). With these vertices established, the system then determines their connectivity. To do this efficiently, we revisit
+each of the previously activated patches. Within a given
+
+The Challenge and Our Strategy. A fundamental challenge is applying our model, which processes 1024×1024
+inputs, to high-resolution satellite imagery (e.g., 8K×4K).
+A naive approach of processing every patch is computationally wasteful, especially in off-road scenes where roads
+2
+
+(a)
+
+(b)
+
+(c)
+
+Figure 7. The AI-assisted “Prompt-Propose-Refine” workflow. (a) An annotator provides sparse prompts at key locations. (b) The model
+generates a high-quality proposal, which may contain minor errors highlighted by red boxes. (c) The user quickly refines these areas, with
+the corrected sections shown in green boxes.
+
+Algorithm 2 Prompt-Driven Large-Scale Inference
+
+patch, we consider only the subset of global vertices that
+fall within its boundaries and use our MaGTopoNet module
+to predict the probability of edges between them based on
+the local image context.
+
+Require: Large image I, User prompts P .
+Ensure: Final graph G = (V, E).
+1: function I NFER F ROM P ROMPTS (I, P )
+2:
+Apatches ← IdentifyActivePatches(P )
+3:
+Mlocal ← {}
+4:
+for patch in Apatches do
+
+Stage 3: Global Edge Aggregation and Final Graph.
+Since patches overlap, a single candidate edge may be evaluated independently in multiple patches, providing a robust
+ensembling opportunity. In this final stage, we aggregate all
+connectivity predictions from across the active patches. The
+scores for each unique edge are averaged, and an edge is included in the final graph only if its average score exceeds
+a confidence threshold. This ensures the final road network
+is topologically coherent, resolving local ambiguities and
+producing a single, unified graph for the user to refine.
+
+Mlocal [patch] ← Model.infer(I, patch)
+end for
+Mglobal ← FuseMasks(Mlocal )
+V ← ExtractVerticesFromMask(Mglobal )
+Sedge ← {}
+for patch in Apatches do
+11:
+Vpatch ← GetVerticesInPatch(V, patch)
+12:
+Spatch ← MaGTopoNet(Vpatch , Mlocal [patch])
+13:
+UpdateEdgeScores(Sedge , Spatch )
+14:
+end for
+15:
+E ← AggregateAndThresholdEdges(Sedge )
+16:
+return G = (V, E)
+17: end function
+5:
+6:
+7:
+8:
+9:
+10:
+
+8.3. The “Prompt-Propose-Refine” Workflow
+Our system transforms the laborious task of manual road
+tracing into a highly efficient, human-in-the-loop validation process, which we term the “Prompt-Propose-Refine”
+workflow. As illustrated in Figure 7, this process unfolds in
+three intuitive steps.
+
+• (c) Refine: The annotator’s task is then reduced to curation. They examine the proposal for inaccuracies highlighted by red boxes. By switching to Edit mode, they can
+perform a range of quick corrections, such as repositioning vertices and adding missed connections, to achieve
+the final, accurate graph shown in the green boxes.
+This synergistic “Prompt-Propose-Refine” paradigm combines the pattern recognition strength of the deep model
+with the nuanced judgment of a human annotator, achieving both high efficiency and accuracy.
+
+• (a) Prompt: The annotator begins by inspecting the image and placing a sparse set of positive and negative
+prompts at key topological locations, such as junctions,
+endpoints, or ambiguous areas.
+• (b) Propose: After placing the prompts, the annotator
+clicks “Auto-run”. The system feeds these prompts to
+our interactive MaGRoad model, which generates a highquality road graph proposal in real-time. This proposal
+serves as a strong baseline, often capturing the majority
+of the road network correctly.
+3
+
+9. Dataset Organization
+
+Algorithm 3 Topology-Aware Data Partitioning
+
+9.1. Data Partitioning Strategy
+
+Require: Large images I, ground-truth graphs G; density
+threshold τdensity , similarity threshold τsim .
+
+Constructing a high-quality vectorized dataset from largescale satellite imagery requires a well-designed processing
+pipeline. Raw gigapixel images (for example, 8k × 4k) are
+too large for direct training, so they are first divided into
+manageable 1024×1024 patches. To ensure that each patch
+contains sufficient information and that the overall dataset
+reflects diverse topological patterns, we adopt a “Generate–Filter–Select” strategy. This procedure converts raw
+imagery into a curated collection of samples while reducing repetitive content, as summarized in Algorithm 3.
+
+Ensure: Final dataset D.
+1: function G ENERATE A ND S ELECT(I, G)
+2:
+D←∅
+3:
+for each (I, G) in (I, G) do
+4:
+▷ Step 1: Candidate Generation
+5:
+SA ← S LIDING W INDOW(I, G, stride = 1024)
+6:
+SB ← S LIDING W INDOW(I, G, stride = 256)
+
+▷ Step 2: Density Filtering
+SA ← {p ∈ SA | D ENSITY(p) ≥ τdensity }
+SB ← {p ∈ SB | D ENSITY(p) ≥ τdensity }
+▷ Step 3: Diversity Selection
+Dlocal ← SA
+S ORT B Y D ENSITY( SB )
+13:
+for each patch p in SB do
+14:
+N ← G ET S PATIAL N EIGHBORS(p, Dlocal )
+15:
+simmax ← maxn∈N WLS IM(p.G, n.G)
+16:
+if simmax < τsim then
+17:
+Dlocal ← Dlocal ∪ {p}
+18:
+end if
+19:
+end for
+20:
+D ← D ∪ Dlocal
+21:
+end for
+22:
+return D
+23: end function
+7:
+8:
+9:
+10:
+11:
+12:
+
+Candidate Generation and Graph Cropping. We first
+employ a sliding window approach to generate a comprehensive pool of candidate patches using two distinct strategies. The primary set A consists of non-overlapping patches
+sampled on a strict grid with stride 1024 to ensure basic coverage. A supplementary set B is generated using a dense,
+overlapping sliding window with stride 256 to capture diverse road contexts and shift-variant topologies that might
+be split across boundaries in the primary grid. A critical challenge here is maintaining graph validity at patch
+boundaries. We utilize a robust graph cropping algorithm
+that computes precise geometric intersections between road
+edges and patch borders. This ensures that all road segments within a patch are properly terminated or connected,
+preventing invalid topology such as dangling edges or isolated nodes outside the field of view.
+
+(such as complex junctions or winding paths) while suppressing redundant simple structures.
+
+Density-Based Filtering. In off-road environments, vast
+regions may contain no road networks. To maintain training
+efficiency, we filter candidates based on road length density.
+We compute the total length of road segments within each
+patch and normalize it by the patch area. Candidates falling
+below a predefined density threshold τdensity are identified as
+empty background and discarded. This step ensures that the
+model focuses on regions with valid learning signals.
+
+9.2. Dataset Statistics
+After applying our partitioning and selection strategy, the
+final WildRoad dataset comprises a total of 9,274 curated
+patches. Table 6 details the distribution across the training,
+validation, and test sets. The training set contains 6,448
+patches with over 4,000 km of road network and more than
+11,000 intersections, providing a rich source of topological
+variety for model learning. The validation and test sets are
+similarly structured, ensuring a robust evaluation of generalization capability across diverse off-road scenarios.
+
+Topology-Aware Diversity Selection. A common issue
+in sliding-window datasets is the inclusion of highly repetitive samples (e.g., identical straight roads shifted by a few
+pixels). To address this, we introduce a topology-aware
+selection mechanism using the Weisfeiler-Lehman (WL)
+Graph Kernel. We first retain all valid patches from the primary Set A. Then, we iteratively evaluate candidates from
+Set B. For each candidate, we extract its graph topology and
+compute its WL similarity score against spatially neighboring patches that have already been selected. A candidate
+is added to the final dataset only if its maximum similarity score is below a threshold τsim . This strategy explicitly
+encourages the inclusion of topologically distinct samples
+
+Table 6. Dataset statistics for road network analysis.
+
+4
+
+Dataset
+
+Files
+
+Length (km)
+
+Intersections
+
+Endpoints
+
+Train
+Val
+Test
+
+6,448
+1,493
+1,333
+
+4,104.99
+951.61
+810.95
+
+11,172
+2,573
+2,180
+
+35,530
+8,298
+6,941
+
+

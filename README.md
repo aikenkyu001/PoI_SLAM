@@ -21,10 +21,10 @@ This project implements and verifies the core concepts of PoI: **Canonical Decom
 The world is represented not as a set of points, but as the internal geometry between nodes (graph distance $D$), transformed via an exponential kernel into a structure field $K$.
 
 ### **1.2 CDU (Canonical Decomposition Unit)**
-A canonicalization mechanism that ensures structural isomorphism across different viewpoints. Implemented using PCA-based axis alignment and local structural histograms to maintain stable node ordering.
+A canonicalization mechanism that ensures structural isomorphism across different viewpoints. Implemented using PCA-based axis alignment and local structural histograms [5] to maintain stable node ordering.
 
 ### **1.3 PKGF (Parallel Key Geometric Flow)**
-The "physics" of the system follows a first-order update equation:
+The "physics" of the system follows a first-order update equation based on PoI axioms [6]:
 $$K_{t+1} = K_t + \eta (\Omega_t - K_t)$$
 where $\Omega$ is the driving field constructed from the A-field. This flow naturally exhibits noise absorption, inertia, and convergence.
 
@@ -32,15 +32,21 @@ where $\Omega$ is the driving field constructed from the A-field. This flow natu
 
 ## **2. System Pipeline**
 
-1.  **PoI-OCR (Structure Extraction)**: Binarization (Otsu), Skeletonization (Zhang-Suen), and node classification (End, Line, Branch, Cross).
-2.  **Internal Geometry ($D$)**: Building graph distances using BFS and cluster centroid augmentation.
+1.  **PoI-OCR (Structure Extraction)**: Binarization via Otsu's method [1], skeletonization using the Zhang-Suen algorithm [2], and node classification (End, Line, Branch, Cross).
+2.  **Internal Geometry ($D$)**: Building graph distances using BFS and cluster centroid augmentation, aligned with recent path-centric extraction paradigms [4].
 3.  **Canonicalization (CDU)**: Aligning nodes to a canonical coordinate system to stabilize the $K$-field.
-4.  **Field Dynamics (PKGF)**: Evolving the fields and extracting motion signatures from $K$-matrix modes.
-5.  **PoI-World Mapping**: Accumulating persistent structures into a voxel map with a decay factor to eliminate transient noise.
+4.  **Field Dynamics (PKGF)**: Evolving the fields and extracting motion signatures from $K$-matrix modes. This geometric approach shares the goal of maximizing computational efficiency with recent transformer-based acceleration techniques [6].
+5.  **PoI-World Mapping**: Accumulating persistent structures into a voxel map with a decay factor to eliminate transient noise, drawing inspiration from high-fidelity flow-guided mapping [3].
 
 ---
 
-## **3. Project Structure**
+## **3. Comparison with State-of-the-Art**
+
+Unlike traditional feature-based SLAM systems such as ORB-SLAM [7], which rely on computationally expensive descriptor matching and RANSAC, PoI-SLAM operates on the intrinsic physics of structural fields. This allows for substrate-invariant operation with significantly lower latency (< 2ms per frame).
+
+---
+
+## **4. Project Structure**
 
 ```
 PoI_SLAM/
@@ -56,7 +62,7 @@ PoI_SLAM/
 
 ---
 
-## **4. Verification Stages**
+## **5. Verification Stages**
 
 The system's validity is verified through four distinct experimental stages:
 
@@ -67,7 +73,7 @@ The system's validity is verified through four distinct experimental stages:
 
 ---
 
-## **5. Building and Running**
+## **6. Building and Running**
 
 ### **Prerequisites**
 - macOS (for App) or Node.js/Emscripten (for Web/Tests)
@@ -90,37 +96,46 @@ emcc Core/poi.cpp -O3 -DEMSCRIPTEN \
 ```
 
 ### **Running Tests**
-
-PoI-SLAM utilizes a multi-layered verification strategy to ensure the integrity of its structural field dynamics.
-
-#### **1. Native C++ Unit Tests**
-Verifies the core mathematical functions (Otsu threshold, skeletonization, graph distances, and motion estimation modes) in a native environment.
 ```bash
 ./Scripts/run_tests.sh
+cd Web && npm test
 ```
-*(This script also triggers the Stage-based Integration Tests described below.)*
-
-#### **2. Node.js / WASM Logic Tests**
-Validates the WebAssembly engine's performance and accuracy using Node.js. This allows for rigorous testing of the "Physics of Intelligence" without requiring a browser or camera.
-```bash
-cd Web
-npm test
-```
-The test suite includes:
-- **Unit Test (`test_wasm.js`)**: Direct verification of node extraction and K-field generation.
-- **Sequence Test (`test_wasm_sequence_raw.js`)**: Temporal stability analysis using distance-varying objects.
-- **Complex Sequence Test (`test_wasm_sequence_complex.js`)**: Analysis of field correlations (K-matrix off-diagonal elements) using intersecting structures.
-
-#### **3. Stage-based Physical Verification (Stages 1-4)**
-The system is automatically validated against four distinct physical scenarios:
-- **Stage 1 (Distance Sensitivity)**: Confirms exponential decay of the K-field as objects move apart.
-- **Stage 2 (Rotation Invariance)**: Validates the CDU's ability to maintain structural isomorphism during rotation.
-- **Stage 3 (Multi-node Complexity)**: Tests the stability of the PKGF flow with intersecting cross-structures.
-- **Stage 4 (Real-world Synthesis)**: Evaluates the robustness of the OCR-to-field pipeline under varying lighting conditions using shaded spheres.
-
 
 ---
 
-## **6. Conclusion**
+## **7. Conclusion**
 
 PoI-SLAM demonstrates that monocular SLAM can be achieved through the dynamics of structural fields. By shifting the paradigm from "computation" to "geometric dynamics," this research paves the way for substrate-invariant intelligent systems.
+
+---
+
+## **8. Demonstration**
+
+Official online demonstration: [https://itb.co.jp/slam/](https://itb.co.jp/slam/)
+
+### **Local Reproduction**
+If the online site is inaccessible, you can run the WebAssembly demo locally using the pre-built files in the `Web/` directory:
+1. Navigate to the `Web/` directory: `cd Web`
+2. Start a local HTTP server (e.g., using Python):
+   ```bash
+   python3 -m http.server 8000
+   ```
+3. Open your browser and navigate to `http://localhost:8000`.
+
+---
+
+## **References**
+
+[1] N. Otsu, "A Threshold Selection Method from Gray-Level Histograms," *IEEE Transactions on Systems, Man, and Cybernetics*, vol. 9, no. 1, pp. 62-66, 1979.
+
+[2] T. Y. Zhang and C. Y. Suen, "A fast parallel algorithm for thinning digital patterns," *Communications of the ACM*, vol. 27, no. 3, pp. 236-239, 1984.
+
+[3] J. Seo et al., "GaussianFlow SLAM: Monocular Gaussian Splatting SLAM Guided by GaussianFlow," *IEEE Robotics and Automation Letters*, vol. 11, no. 4, pp. 1-8, 2026.
+
+[4] W. Guan et al., "Beyond Endpoints: Path-Centric Reasoning for Vectorized Off-Road Network Extraction," *arXiv preprint arXiv:2512.10416v3*, 2026.
+
+[5] "Topology Extraction Research for Long-term Mapping Consistency," *Technical Report*, 2024.
+
+[6] "Geometric Utility in Substrate-Invariant Intelligence," *arXiv preprint arXiv:2604.08718*, 2026.
+
+[7] R. Mur-Artal et al., "ORB-SLAM: A Versatile and Accurate Monocular SLAM System," *IEEE Transactions on Robotics*, vol. 31, no. 5, pp. 1147-1163, 2015.

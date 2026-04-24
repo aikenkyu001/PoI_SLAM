@@ -1,0 +1,724 @@
+2EEE TRANSACTIONS ON SYSTREMS, MAN, AND CYBERNETICS, VOL. SMC-9, NO. 1, JANUARY 1979
+
+62
+
+ments," Proc. ofthe 3rd Sym. on Nonlinear Estimation Theory and its Applications,
+San Diego, CA, Sept. 1972.
+[4] P. Smith and G. Buechler, "A branching algorithm for discrimination and tracking multiple objects," IEEE Trans. Automat. Contr., vol. AC-20, pp. 101-104,
+1975.
+[5] D. L. Alspach, 'A Gaussian sum approach to the multitarget-tracking problem,"
+Automatica, vol. 11, pp. 285-296,1975.
+[6] C. L. Morefield, Application of 0-1 Integer Programming to a Track Assembly
+Problem, TR-0075(5085-10II, Aerospace Corp. El Segundo, CA, Apr. 1975.
+[7] D. B. Reid, A Multiple Hypothesis Filter for Tracking Multiple Targets in a
+Cluttered Environment, LMSC-D560254, Lockheed Palo Alto Research Laboratories, Palo Alto, CA, Sept. 1977.
+[8] P. L. Smith, "Reduction of sea surveillance data using binary matrices," IEEE
+Trans. Syst., Man, Cybern., vol. SMC-6 (8), pp. 531-538, Aug. 1976.
+
+7*
+
+LONGITUDE
+
+Fig. 6. ID plot of ship 10001 after the second round of operator-imposed assignment constraints.
+
+A Tlreshold Selection Method
+from Gray-Level Histograms
+NOBUYUKI OTSU
+
+Abstract-A nonparametric and unsupervised method of automatic threshold selection for picture segmentation is presented. An
+optimal threshold is selected by the discriminant criterion, namely,
+so as to maximize the separability of the resultant classes in gray
+levels. The procedure is very simple, utilizing only the zeroth- and the
+first-order cumulative moments of the gray-level histogram. It is
+straightforward to extend the method to multithreshold problems.
+Several experimental results are also presented to support the
+validity of the method.
+
+t
+
+I. INTRODUCTION
+
+It is important in picture processing to select an adequate threshold of gray level for extracting objects from their background. A
+variety of techniques have been proposed in this regard. In an
+ideal case, the histogram has a deep and sharp valley between two
+LONGITUDE
+peaks representing objects and background, respectively, so that
+the threshold can be chosen at the bottom of this valley [1].
+Fig. 7. Actual ship movements.
+However, for most real pictures, it is often difficult to detect the
+valley
+bottom precisely, especially in such cases as when the valley
+of the two last sighted locations. The true trajectories are shown in
+is
+flat
+and broad, imbued with noise, or when the two peaks are
+Fig. 7 where it can be seen that ship 10001 did, in fact, turn toward
+extremely
+unequal in height, often producing no traceable valley.
+the coast.
+There have been some techniques proposed in order to overcome
+these difficulties. They are, for example, the valley sharpening
+IV. CONCLUDING REMARKS
+The procedure of ship identification from DF sightings has technique [2], which restricts the histogram to the pixels with
+been oversimplified in this discussion. Often DF sightings are not large absolute values of derivative (Laplacian or gradient), and
+completely identified but, instead, contain only ship class informa- the difference histogram method [3], which selects the threshold at
+tion. The interactive technique still applies, but additional the gray level with the maximal amount of difference. These utilize
+information concerning neighboring pixels (or edges) in the oriidentification and display flexibility must be provided.
+Any additional information contained in the sightings can be ginal picture to modify the histogram so as to make it useful for
+used to discriminate among radar and DF sightings. Factors such thresholding. Another class of methods deals directly with the
+as measured heading and visual ID will permit further automatic gray-level histogram by parametric techniques. For example, the
+histogram is approximated in the least square sense by a sum of
+reduction of the P and Q matrices.
+It is also possible to automate some of the more routine manual Gaussian distributions, and statistical decision procedures are
+functions. However, experience has shown that better results are applied [4]. However, such a method requires considerably tedobtained by having a human operator resolve ambiguous situa- ious and sometimes unstable calculations. Moreover, in many
+cases, the Gaussian distributions turn out to be a meager approxitions arising from sparse data.
+mation of the real modes.
+REFERENCES
+In any event, no "goodness" of threshold has been evaluated in
+[I] R. W. Sittler, "An optimal data association problem in surveillance theory,"
+IEEE Trans. Mil. Elect., vol. MIL-8, pp. 125-139, 1964.
+[2] M. S. White, "Finding events in a sea of bubbles," IEEE Trans. Comput., voL
+C-20 (9) pp. 988-1006, 1971.
+[3} A. G. Jaffer and Y. Bar-Shalom. "On optimal tracking in multiple-target environ-
+
+Manuscript received October 13, 1977;revised April 17,1978 and August 31, 1978.
+The author is with the Mathematical Engineering Section, Information Science
+Division, Electrotechnical Laboratory, Chiyoda-ku, Tokyo 100, Japan.
+
+0018-9472/79/0100-0062$00.75 (D 1979 IEEE
+
+Authorized licensed use limited to: CZECH TECHNICAL UNIVERSITY. Downloaded on May 14, 2009 at 04:43 from IEEE Xplore. Restrictions apply.
+
+63
+
+CORRESPONDENCE
+
+most of the methods so far proposed. This would imply that it
+could be the right way of deriving an optimal thresholding method
+to establish an appropriate criterion for evaluating the "goodness"
+of threshold from a more general standpoint.
+In this correspondence, our discussion will be confined to the
+elementary case of threshold selection where only the gray-level
+histogram suffices without other a priori knowledge. It is not only
+important as a standard technique in picture processing, but also
+essential for unsupervised decision problems in pattern recognition. A new method is proposed from the viewpoint of discriminant analysis; it directly approaches the feasibility of evaluating the
+"goodness" of threshold and automatically selecting an optimal
+threshold.
+II. FORMULATION
+of
+a
+the
+Let
+pixels
+given picture be represented in L gray levels
+[1, 2, ,L]. The number of pixels at level i is denoted by ni and
+the total number of pixels by N = n1 + n2 + + nL* In order to
+simplify the discussion, the gray-level histogram is normalized
+and regarded as a probability distribution:
+L
+
+pi >0, Z Pi-1
+
+pi = nilN,
+
+(1)
+
+Now suppose that we dichotomize the pixels into two classes
+CO and C 1 (background and objects, or vice versa) by a threshold
+at level k; CO denotes pixels with levels [1, , k], and C1 denotes
+pixels with levels [k + 1, , L]. Then the probabilities of class
+occurrence and the class mean levels, respectively, are given by
+k
+
+wo = Pr (Co)= E Pi= (k)
+
+(2)
+
+i=1
+
+L
+
+k
+
+i Pr (i Co)- E ipi Io = p(k)/w(k)
+ItT P(k)
+
+L
+
+L
+
+co(k)
+
+i=k+lI
+k=k+
+k
+
+pi
+
+=
+
+p(k)= i=1
+I ipi
+L
+
+PT P- (L) = Z ipi
+i =1
+
+(8)
+
+the following relation for any choice of k:
+
+2
+
+=i
+
+L
+
+I2 =
+
+(Oo+ Ui=
+I
+
+E (i - P0)2 Pr (i C0)= Z
+
+ii=
+
+(i - po)2pi/o
+
+(9)
+
+(10)
+
+L
+
+E (i pl)2 Pr (i IC,) = i k+ I (i - p)2p Wi,
+i=k+ I
+_
+
+2
+2
+2
+UW = 6oJoU + 0J1ff1
+
+2 =
+
+o(po
+
+PT)
+
+(13)
++
+
+1G(i1
+
+= iOO(Y1 -PTo)T
+
+PT)
+
+(14)
+
+(due to (9)) and
+L
+
+)p
+JT2 = E (i - p2p
+i=1
+
+(15)
+
+are the within-class variance, the between-class variance, and the
+total variance of levels, respectively. Then our problem is reduced
+to an optimization problem to search for a threshold k that maximizes one of the object functions (the criterion measures) in (12).
+This standpoint is motivated by a conjecture that wellthresholded classes would be separated in gray levels, and conversely, a threshold giving the best separation of classes in gray
+levels would be the best threshold.
+The discriminant criteria maximizing A, K, and q, respectively,
+for k are, however, equivalent to one another; e.g., K = i + 1 and
+= )/(2 + 1) in terms of 2, because the following basic relation
+always holds:
+= 52
+a21w + a2TB
+(16)
+
+(7)
+
+is the total mean level of the original picture. We can easily verify
+
+k
+
+where
+
+l(k) = us(k)l/T
+a2k ==[p7(k) --(k)]2
+cB(k
+
+are the zeroth- and the first-order cumulative moments of the
+histogram up to the kth level, respectively, and
+
+k
+
+(12)
+
+(6)6
+
+(5)
+
+and
+
+OP00 +O+IU1=P T,
+The class variances are given by
+
+=/2/a2
+
+=
+
+measure with respect to k. Thus we adopt q as the criterion measure to evaluate the "goodness" (or separability) of the threshold at
+level k.
+The optimal threshold k* that maximizes t, or equivalently
+maximizes a2 is selected in the following sequential search by
+using the simple cumulative quantities (6) and (7), or explicitly
+using (2)-(5):
+
+where
+
+o(k)
+
+(T2/a2WK
+
+K =
+
+t9" It is noticed that U2 and U2 are functions of threshold level k, but
+CT is independent of k. It is also noted that cr2 is based on the
+second-order statistics (class variances), while (T2 is based on the
+(4) first-order statistics (class means). Therefore, q is the simplest
+
+and
+k
+
+A = a22
+
+i-,
+
+w01 = Pr (Ci)= E pi = 1-@(k)
+i =k+ I
+Po =
+
+These require second-order cumulative moments (statistics).
+In order to evaluate the "goodness" of the threshold (at level k),
+we shall introduce the following discriminant criterion measures
+(or measures of class separability) used in the discriminant
+analysis [5]:
+
+(11)
+
+(k)[1 w)(k)]-
+
+(17)
+(18)
+
+and the optimal threshold k* is
+2
+
+(k* ) = max o2(k).
+1 <k<L
+
+(19)
+
+From the problem, the range of k over which the maximum is
+sought can be restricted to
+
+SF = {k; (loow = w(k)[I- ((k)] > 0,
+
+or 0 < o(k) < 1}.
+
+We shall call it the effective range of the gray-level histogram.
+From the definition in (14), the criterion measure i' (or q) takes a
+minimum value of zero for such k as k e S - S* = {k; (o(k) = 0 or
+1} (i.e., making all pixels either Cl or CO, which is, of course, not
+our concern) and takes a positive and bounded value for k e S*. It
+is, therefore, obvious that the maximum always exists.
+
+Authorized licensed use limited to: CZECH TECHNICAL UNIVERSITY. Downloaded on May 14, 2009 at 04:43 from IEEE Xplore. Restrictions apply.
+
+64
+
+IEEE TRANSACnONS ON SYSTEMS, MAN, AND CYBERNEnCS, VOL SMC-9, NO. 1, JANUARY 1979
+
+Ill. DISCUSSiON AND REMARKS
+A. Analysis offurther important aspects
+The method proposed in the foregoing affords further means to
+
+analyze important aspects other than selecting optimal
+thresholds.
+For the selected threshold k*, the class probabilities (2) and (3),
+respectively, indicate the portions of the areas occupied by the
+classes in the picture so thresholded. The class means (4) and (5)
+serve as estimates of the mean levels of the classes in the original
+gray-level picture.
+The maximum value ti(k*), denoted simply by 1*, can be used as
+a measure to evaluate the separability of classes (or ease of thresholding) for the original picture or the bimodality of the histogram. This is a significant measure, for it is invariant under affine
+transformations of the gray-level scale (i.e., for any shift and dilatation, g' = agj + b) It is uniquely determined within the range
+0 < q < 1.
+The lower bound (zero) is attainable by, and only by, pictures
+having a single constant gray level, and the upper bound (unity) is
+attainable by, and only by, two-valued pictures.
+B. Extension to Multithresholding
+The extension of the method to multihresholding problems is
+straightforward by virtue of the discriminant criterion. For example, in the case of three-thresholding, we assume two thresholds:
+1 < k1 < k2 < for separating three classes, CO for [1, * * *, kl], C,
+for [k1 + 1, , k2], and C2 for [k2 + 1, --, L]. The criterion
+measure or (also q) is then a function of two variables k, and k2,
+and an optimal set of thresholds kt and kt is selected by maximizing r7:
+a2(ki,, kt) = max o2(kI, k2)-
+
+(b)
+
+(a)
+
+PT, 4.2
+
+al=8.831
+
+K=6
+
+7 =0.894
+
+W" 0.818
+
+pO= 2.8
+
+=
+
+p,l= 10.1
+
+w, = 0.182
+
+(d)
+
+5 1
+
+(
+(c)
+
+1!kl<k2<L
+
+It should be noticed that the selected thresholds generally
+become less credible as the number of classes to be separated
+increases. This is because the criterion measure (e2), defined in
+one-dimensional (gray-level) scale, may gradually lose its meaning
+as the number of classes increases. The expression of U2 and the
+maximization procedure also become more and more complicated. However, they are very simple for M = 2 and 3, which
+cover almost all practical applications, so that a special method to
+reduce the search processes is hardly needed. It should be
+remarked that the parameters required in the present method for
+M-thresholding are M - 1 discrete thresholds themselves, while
+the parametric method, where the gray-level histogram is approximated by the sum of Gaussian distributions, requires 3M - 1
+continuous parameters.
+C. Experimental Results
+Several examples of experimental results are shown in Figs. 1-3.
+Throughout these figures, (a) (as also (e)) is an original gray-level
+picture; (b) (and (f)) is the result of thresholding; (c) (and (g)) is a
+set of the gray-level histogram (marked at the selected threshold)
+and the criterion measure q1(k) related thereto; and (d) (and (h)) is
+the result obtained by the analysis. The original gray-level pictures are all 64 x 64 in size, and the numbers of gray levels are 16
+in Fig. 1, 64 in Fig. 2, 32 in Fig. 3(a), and 256 in Fig. 3(e). (They all
+had equal outputs in 16 gray levels by superposition of symbols by
+reason of representation, so that they may be slightly lacking in
+precise detail in the gray levels.)
+Fig. 1 shows the results of the application to an identical character "A" typewritten in different ways, one with a new ribbon (a)
+
+(f
+
+(e)
+PT
+
+CUT 5.052
+
+4.3
+
+n'= 0.853
+
+K=6
+t ('
+w
+
+=0.858
+
+PO= 3.4
+
+p1= 9.4
+
+w,=0. 142
+(h)
+
+(g)
+Fig. 1.
+
+Application to characters.
+
+Authorized licensed use limited to: CZECH TECHNICAL UNIVERSITY. Downloaded on May 14, 2009 at 04:43 from IEEE Xplore. Restrictions apply.
+
+65
+
+CORRESPONDENCE
+
+..::
+
+.........
+
+..... .........
+
+i,t,,~~~~~~~~~~.
+
+() .
+
+(a)
+
+. ...:..
+
+(a)
+
+(a)
+
+(b)
+
+=T 34.4
+
+(b)
+
+K = 33
+
+7 = 0.887
+
+w,= 0.478
+
+P&= 14.2
+
+w, = 0.522
+
+JJ1= 52.8
+
+2
+
+Cr2= 23.347
+
+pT 7.3
+
+l=418 033
+
+K;= 7
+
+K2=15
+
+w, = 0.633
+
+EL|
+
+..11
+
+............
+
+hP= 4.3
+10.5=
+05
+z2=20.2
+
+W, = 0.296
+
+111111111,-......
+
+'= 0.873
+
+w2 = 0.071
+
+I
+
+(d)
+
+II
+
+(d)
+
+(c)
+
+(c)
+'' iliE,
+,,l , , , i~...........
+
+I
+
+*1'.
+
+(e)
+T
+
+7 =
+
+wo= 0.266
+I
+w
+
+P,=44.6
+
+(g)
+Fig. 2. Application to textures.
+
+w0=0.395
+
+PJO=.24.1
+
+w, 0.456
+
+Pi= 99.2
+
+W2=0.1t49
+
+PZ=174.0
+
+z
+
+(h)
+
+(g)
+
+CT 3043.561
+
+K:=61 K2=136 7=0.893
+
+0.767
+
+0e 20.8
+
+=0. 734
+
+(f)--
+
+PT 80.7
+
+a2= 143982
+
+38.3
+
+I_. . . IIIIIIIIIIIII KI = 32
+7
+
+(e)
+
+(f)
+
+-. .t
+
+(h)
+
+Fig. 3. Application to cells. Critenon measures f(kt, k2) are omitted in (c) and (g)
+by reason of illustration.
+
+Authorized licensed use limited to: CZECH TECHNICAL UNIVERSITY. Downloaded on May 14, 2009 at 04:43 from IEEE Xplore. Restrictions apply.
+
+66
+
+IEEE TRANSACTIONS ON SYSTEMS, MAN, AND CYBERNETICS, VOL. SMC-9, No. 1, JANI'ARY 1979
+
+and another with an old one (e), respectively. In Fig. 2, the results
+are shown for textures, where the histograms typically show the
+difficult cases of a broad and flat valley (c) and a unimodal peak
+(g). In order to appropriately illustrate the case of threethresholding, the method has also been applied to cell images with
+successful results, shown in Fig. 3, where CO stands for the background, C1 for the cytoplasm, and C2 for the nucleus. They are
+
+indicated in (b) and (f) by ( ), (=), and (*), respectively.
+A number of experimental results so far obtained for various
+examples indicate that the present method derived theoretically is
+of satisfactory practical use.
+D. Unimodality of the object function
+The object function 52(k), or equivalently, the criterion measure
+1(k), is always smooth and unimodal, as can be seen in the experimental results in Figs. 1-2. It may attest to an advantage of the
+suggested criterion and may also imply the stability of the
+method. The rigorous proof of the unimodality has not yet been
+obtained. However, it can be dispensed with from our standpoint
+concerning only the maximum.
+
+is feasible by virtue of the criterion on which the method is based.
+3) An optimal threshold (or set of thresholds) is selected automatically and stably, not based on the differentiation (i.e.. a local
+property such as valley), but on the integration (i.e., a global
+property) of the histogram.
+4) Further important aspects can also be analyzed (e.g., estimation of class mean levels, evaluation of class separability, etc.).
+5) The method is quite general: it covers a wide scope of un-
+
+supervised decision procedure.
+
+The range of its applications is not restricted only to the thresholding of the gray-level picture, such as specifically described in
+the foregoing, but it may also cover other cases of unsupervised
+classification in which a histogram of some characteristic (or feature) discriminative for classifying the objects is available.
+Taking into account these points, the method suggested in this
+correspondence may be recommended as the most simple anid
+standard one for automatic threshold selection that can be
+applied to various practical problenms,
+AcK NOWLEDGMENT
+
+The author wishes to thank Dr. H. Nishino, Head of the Information Science Division, for his hospitality and encouragement.
+Thanks are also due to Dr. S. Mori, Chief of the Picture Processing Section, for the data of characters and textures and valuable
+discussions, and to Dr. Y. Nogucli for cell data. The author is also
+very grateful to Professor S. Amari of the University of Tokyo for
+his cordial and helpful suggestions for revising the presentation of
+the manuscript.
+
+IV. CONCLUSION
+A method to select a threshold automatically from a gray level
+histogram has been derived from the viewpoint of discriminant
+analysis. This directly deals with the problem of evaluating the
+goodness of thresholds. An optimal threshold (or set of thresholds) is selected by the discriminant criterion; namely, by maximizing the discriminant measure q (or the measure of separability
+of the resultant classes in gray levels).
+The proposed method is characterized by its nonparametric
+and unsupervised nature of threshold selection and has the following desirable advantages.
+1) The procedure is very simple; only the zeroth and the first
+order cumulative moments of the gray-level histogram are
+
+[4] C. K. Chow and T. Kaneko, "Automatic boundary detection of the left ventricle
+
+2) A straightforward extension to multithresholding problems
+
+[5] K, Fukunage, Introduction to Statisticul Pattern Recogniition. New York:
+Academic, 1972, pp. 260-267.
+
+utilized.
+
+REFERENCIES
+[1] J. M. S. Prewitt and M. L. Mendelsolhn, "The analysis of cell images," nn.
+Acad. Sci., vol. 128, pp. 1035-1053, 1966
+[2] J. S. Weszka, R. N. Nagel, and A. Rosenfeld, "A threshold selection technique."
+IEEE Trans. Comput., vol. C-23, pp. 1322 -1326, 1974
+
+[3] S. Watanabe and CYBEST Group. "An automated apparatus for cancer
+
+prescreening: CYBEST," Comp. Graph. Imiage Process. vol. 3. pp. 350--358, 1974.
+
+from cineangiograms," Comput. Biomed. Res., vol. 5, pp. 388- 410, 1972.
+
+Book Reviews
+Orthogonal Transforms for Digital Signal Processing---N. Ahmed and K.
+R. Rao (New York: Springer-Verlag, 1975, 263 pp.). Reviewed by Lokenatlh
+Debnath, Departments of Mathematics and Physics, East Carolina Unit ersity, Greenville, NC 27834.
+With the advent of high-speed digital computers and the rapid advances
+
+in digital technology, orthogonal transforms have received considerable
+attention in recent years, especially in the area of digital signal processing.
+
+This book presents the theory and applications of discrete orthogonal
+transforms. With some elementary knowledge of Fourier series transforms, differential equations, and matrix algebra as prerequisites, this
+book is written as a graduate level text for electrical and computer engineering students.
+The first two chapters are essentially tutorial and cover signal represen-
+
+tation using orthogonal functions. Fourier methods of representating signals. relation between the Fourier series and the Fourier transform, and
+some aspects of cross correlation. autocorrelation. and consolution. Thlese
+chapters provide a systematic transition from the Fourier represenitation
+of analog signals to that of digital sigials.
+The third chapter is concerned with the F'ourier representation of
+discrete and digital signals througlh the discrete Fourier tranisfornm (D)[ I).
+Some important properties of the DFT including thc conv olution anld
+correlation theorems are discussed in some detail, The concept of amplitude, power. and phase spectra is introduced. It is shown that the 1)1F is
+directly related to the Fourier transform series representation ol data scquences tX(rn)). The two-dimensional DlFT anid its possible extensioni to
+higher dimensions are insestigated. and the chapter closes "it}h ;omc
+discussion on time-varying power andt phase spectra.
+
+Authorized licensed use limited to: CZECH TECHNICAL UNIVERSITY. Downloaded on May 14, 2009 at 04:43 from IEEE Xplore. Restrictions apply.
+
+

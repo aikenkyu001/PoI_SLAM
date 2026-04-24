@@ -1,0 +1,34 @@
+# Otsu's Threshold Selection Method (1979)
+# Academic Reference and Implementation Mapping
+
+## 1. Bibliographic Information
+- **Title**: A Threshold Selection Method from Gray-Level Histograms
+- **Author**: Nobuyuki Otsu
+- **Journal**: IEEE Transactions on Systems, Man, and Cybernetics
+- **Volume/Issue**: Vol. 9, No. 1, pp. 62-66
+- **Year**: 1979
+- **DOI**: 10.1109/TSMC.1979.4310076
+
+## 2. BibTeX Entry
+@article{otsu1979threshold,
+  title={A threshold selection method from gray-level histograms},
+  author={Otsu, Nobuyuki},
+  journal={IEEE Transactions on Systems, Man, and Cybernetics},
+  volume={9},
+  number={1},
+  pages={62--66},
+  year={1979},
+  publisher={IEEE},
+  doi={10.1109/TSMC.1979.4310076}
+}
+
+## 3. Mathematical Formulation (Summary)
+The optimal threshold $t^*$ is found by maximizing the between-class variance $\sigma_b^2(t)$:
+$\sigma_b^2(t) = \omega_0(t) \omega_1(t) [\mu_0(t) - \mu_1(t)]^2$
+where $\omega$ and $\mu$ are class probabilities and means respectively.
+
+## 4. Relation to PoI-SLAM Core
+This algorithm is implemented in `Core/poi.cpp`:
+- Function: `otsu_threshold(const std::vector<uint8_t>& gray)`
+- Logic Location: Lines 88-112
+- Purpose: Dynamic binarization to handle varying lighting conditions (Stage 4 verification).
