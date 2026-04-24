@@ -3,7 +3,7 @@
 
 **Author:** Fumio Miyata  
 **Date:** April 2026  
-**DOI:** `https://doi.org/10.5281/zenodo.19705165`  
+**DOI:** `https://doi.org/10.5281/zenodo.19727137`  
 **Repository:** `https://github.com/aikenkyu001/PoI_SLAM`  
 
 ---
