@@ -185,6 +185,11 @@ static void skeletonize(const std::vector<uint8_t>& bin, int w, int h, std::vect
 }
 
 static int classify_node(const std::vector<uint8_t>& skel, int w, int h, int x, int y) {
+    // Node classification based on local connectivity (Topology Analysis)
+    // 0: END (Terminal node, degree 1)
+    // 1: LINE (Continuation, degree 2)
+    // 2: BRANCH (Bifurcation, degree 3)
+    // 3: CROSS (Intersection, degree >= 4)
     int count = 0;
     for (int dy = -1; dy <= 1; ++dy) {
         for (int dx = -1; dx <= 1; ++dx) {
@@ -200,6 +205,8 @@ static void extract_nodes(const std::vector<uint8_t>& skel, int w, int h,
                           std::vector<Node>& nodes, std::vector<int>& index_map) {
     nodes.clear(); index_map.assign(w*h, -1);
     int idx = 0;
+    // MAX_NODES_LIMIT serves as a computational bottleneck control.
+    // In PoI theory, the world is discretized into "islands of structure".
     const int MAX_NODES_LIMIT = 512; 
 
     for (int y = 1; y < h-1; ++y) {
@@ -207,7 +214,7 @@ static void extract_nodes(const std::vector<uint8_t>& skel, int w, int h,
             if (skel[y*w + x] == 0) continue;
             int t = classify_node(skel, w, h, x, y);
             
-            // 構造的に重要な点(t>=2)を優先しつつ制限
+            // Priority given to structural junction points (t >= 2).
             if (t >= 2 || (nodes.size() < MAX_NODES_LIMIT)) {
                 nodes.push_back(Node{x, y, t});
                 index_map[y*w + x] = idx++;

@@ -1,13 +1,11 @@
 {
   "name": "poi-slam-web",
   "version": "1.0.0",
-  "description": "PoI-SLAM Web Research Project",
+  "description": "PoI-SLAM Web Research Project (Optimized for Node.js Testing)",
   "main": "app.js",
   "scripts": {
-    "test": "jest"
+    "test": "node ../Tests/test_wasm.js && node ../Tests/test_all_stages_raw.js && node ../Tests/test_wasm_sequence_raw.js && node ../Tests/test_wasm_sequence_complex.js"
   },
-  "devDependencies": {
-    "jest": "^29.0.0",
-    "jest-environment-jsdom": "^29.0.0"
-  }
+  "dependencies": {},
+  "devDependencies": {}
 }

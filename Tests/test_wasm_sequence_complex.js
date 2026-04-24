@@ -1,15 +1,23 @@
 // Source/test_wasm_sequence_complex.js
 const fs = require("fs");
 const path = require("path");
-const Module = require("./poi.js"); 
+const Module = require("../Web/poi.js"); 
 
 const W = 64, H = 64;
 
 Module.onRuntimeInitialized = async () => {
   console.log("WASM ready (Complex Sequence Mode)");
 
+  // Stage 3 (Moving Cross) を複雑なシーケンスとしてテスト
+  const stageDir = path.join(__dirname, "../Data/Raw/stage3");
+  if (!fs.existsSync(stageDir)) {
+    console.error("Error: Data/Raw/stage3 not found.");
+    process.exit(1);
+  }
+
   for (let i = 0; i < 10; i++) {
-    const fname = path.join(__dirname, `../raw_frames_complex/frame_${i.toString().padStart(2, "0")}.raw`);
+    const fname = path.join(stageDir, `frame_${i.toString().padStart(2, "0")}.raw`);
+    if (!fs.existsSync(fname)) continue;
     const buffer = fs.readFileSync(fname);
 
     const ptr = Module._malloc(buffer.length);
@@ -24,7 +32,6 @@ Module.onRuntimeInitialized = async () => {
     if (dim >= 2) {
       const ptrK = Module._poi_get_K();
       const K = new Float32Array(Module.HEAPF32.buffer, ptrK, dim * dim);
-      // K[0,1] つまり K[1] (非対角成分) を表示して相関の変化を見る
       K_vals = `K[0,0]=${K[0].toFixed(4)} K[0,1]=${K[1].toFixed(4)}`;
     } else {
       K_vals = "dim < 2 (cannot observe correlation)";

@@ -1,18 +1,25 @@
 // Source/test_wasm_sequence_raw.js
 const fs = require("fs");
 const path = require("path");
-const Module = require("./poi.js"); 
+const Module = require("../Web/poi.js"); 
 
 const W = 64, H = 64;
 
 Module.onRuntimeInitialized = async () => {
   console.log("WASM ready (Raw Mode)");
 
+  // Data/Raw/stage1 を利用してテスト
+  const stageDir = path.join(__dirname, "../Data/Raw/stage1");
+  if (!fs.existsSync(stageDir)) {
+      console.error("Error: Data/Raw/stage1 not found.");
+      process.exit(1);
+  }
+
   for (let i = 0; i < 10; i++) {
-    const fname = path.join(__dirname, `../raw_frames/frame_${i.toString().padStart(2, "0")}.raw`);
+    const fname = path.join(stageDir, `frame_${i.toString().padStart(2, "0")}.raw`);
+    if (!fs.existsSync(fname)) continue;
     const buffer = fs.readFileSync(fname);
 
-    // WASM メモリにコピー
     const ptr = Module._malloc(buffer.length);
     Module.HEAPU8.set(new Uint8Array(buffer), ptr);
 

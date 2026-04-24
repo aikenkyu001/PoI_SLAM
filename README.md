@@ -90,9 +90,34 @@ emcc Core/poi.cpp -O3 -DEMSCRIPTEN \
 ```
 
 ### **Running Tests**
+
+PoI-SLAM utilizes a multi-layered verification strategy to ensure the integrity of its structural field dynamics.
+
+#### **1. Native C++ Unit Tests**
+Verifies the core mathematical functions (Otsu threshold, skeletonization, graph distances, and motion estimation modes) in a native environment.
 ```bash
 ./Scripts/run_tests.sh
 ```
+*(This script also triggers the Stage-based Integration Tests described below.)*
+
+#### **2. Node.js / WASM Logic Tests**
+Validates the WebAssembly engine's performance and accuracy using Node.js. This allows for rigorous testing of the "Physics of Intelligence" without requiring a browser or camera.
+```bash
+cd Web
+npm test
+```
+The test suite includes:
+- **Unit Test (`test_wasm.js`)**: Direct verification of node extraction and K-field generation.
+- **Sequence Test (`test_wasm_sequence_raw.js`)**: Temporal stability analysis using distance-varying objects.
+- **Complex Sequence Test (`test_wasm_sequence_complex.js`)**: Analysis of field correlations (K-matrix off-diagonal elements) using intersecting structures.
+
+#### **3. Stage-based Physical Verification (Stages 1-4)**
+The system is automatically validated against four distinct physical scenarios:
+- **Stage 1 (Distance Sensitivity)**: Confirms exponential decay of the K-field as objects move apart.
+- **Stage 2 (Rotation Invariance)**: Validates the CDU's ability to maintain structural isomorphism during rotation.
+- **Stage 3 (Multi-node Complexity)**: Tests the stability of the PKGF flow with intersecting cross-structures.
+- **Stage 4 (Real-world Synthesis)**: Evaluates the robustness of the OCR-to-field pipeline under varying lighting conditions using shaded spheres.
+
 
 ---
 

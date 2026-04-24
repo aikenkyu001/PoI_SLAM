@@ -5,7 +5,7 @@ const path = require("path");
 // emcc で生成した WASM モジュールを require
 let Module;
 try {
-    Module = require("./poi.js");
+    Module = require("../Web/poi.js");
 } catch (e) {
     console.error("Error: poi.js not found. Please build WASM first.");
     process.exit(1);
