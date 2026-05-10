@@ -157,7 +157,7 @@ def metric_modulation_eta_from_K(K):
         
     bar_ctx = np.mean(x_ctx) if len(x_ctx) > 0 else 0.0
     
-    # 文脈が強いほど eta が小さくなり、構造が固定化（保守적）される
+    # 文脈が強いほど eta が小さくなり、構造が固定化（保守的）される
     eta = 1.0 / (1.0 + 0.5 * np.abs(bar_ctx))
     return float(eta)
 
